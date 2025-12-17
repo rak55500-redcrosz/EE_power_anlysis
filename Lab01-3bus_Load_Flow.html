@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ห้องปฏิบัติการจำลอง Load Flow ระบบ 3 บัส</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Google Fonts: Prompt for Thai -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Custom Font Application */
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #FDFBF7; /* Warm neutral background */
+            color: #1F2937; /* Dark gray text */
+        }
+
+        /* Chart Container Styling - MANDATORY */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+
+        /* Animation for Power Flow */
+        @keyframes flowAnimation {
+            0% { stroke-dashoffset: 20; }
+            100% { stroke-dashoffset: 0; }
+        }
+        .flow-line {
+            stroke-dasharray: 5;
+            animation: flowAnimation 1s linear infinite;
+            opacity: 0.6;
+        }
+        .flow-line.paused {
+            animation: none;
+            stroke-dasharray: 0;
+            opacity: 0.3;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+    </style>
+    
+    <!-- Chosen Palette: Warm Neutrals with Functional Accents -->
+    <!-- Background: #FDFBF7 (Cream) -->
+    <!-- Primary: #3B82F6 (Blue - Information/PV Bus) -->
+    <!-- Secondary: #10B981 (Green - Slack Bus/Success) -->
+    <!-- Accent: #F97316 (Orange - PQ Bus/Load) -->
+    <!-- Error: #EF4444 (Red - Faults) -->
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <!-- Application Structure Plan:
+         1. Header: Title and context.
+         2. Navigation: Simple tab-based navigation (Theory, Lab, Analysis).
+         3. Content Area:
+            - Theory: Brief objectives and diagram explanation.
+            - Lab (Main): Interactive Diagram + Control Panel. Users select scenarios (Base Case, Line Trip, etc.) and "Run" the simulation.
+            - Analysis: Charts and Q&A section based on the simulation results.
+         This structure separates the "learning" (Theory) from the "doing" (Lab) and the "synthesizing" (Analysis), simplifying the cognitive load.
+    -->
+
+    <!-- Navbar -->
+    <nav class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-xl font-bold text-gray-800">⚡️ Load Flow Simulator</span>
+                    <span class="ml-2 text-sm text-gray-500 hidden sm:block">| ระบบไฟฟ้า 3 บัส (3-Bus System)</span>
+                </div>
+                <div class="flex space-x-4 items-center">
+                    <button onclick="navTo('section-intro')" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 transition">แนะนำบทเรียน</button>
+                    <button onclick="navTo('section-lab')" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition">ห้องปฏิบัติการ</button>
+                    <button onclick="navTo('section-analysis')" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 transition">วิเคราะห์ผล</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+
+        <!-- SECTION 1: Intro & Theory -->
+        <section id="section-intro" class="space-y-6">
+            <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                <h1 class="text-2xl font-bold text-gray-800 mb-4">การวิเคราะห์การไหลของโหลด (Load Flow Analysis)</h1>
+                <p class="text-gray-600 leading-relaxed mb-4">
+                    ยินดีต้อนรับสู่บทเรียนปฏิบัติการจำลองระบบไฟฟ้ากำลัง 3 บัส วัตถุประสงค์ของบทเรียนนี้คือเพื่อให้ผู้เรียนเข้าใจหลักการทำงานของบัสประเภทต่างๆ (Slack, PV, PQ) และผลกระทบของการเปลี่ยนแปลงพารามิเตอร์ในระบบต่อแรงดันและการไหลของกำลังไฟฟ้า
+                </p>
+                
+                <div class="grid md:grid-cols-2 gap-6 mt-6">
+                    <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                        <h3 class="font-semibold text-blue-800 mb-2">องค์ประกอบของระบบ</h3>
+                        <ul class="list-disc list-inside text-sm text-blue-700 space-y-1">
+                            <li><strong>Bus 1 (Slack):</strong> โรงไฟฟ้าหลัก รับภาระความสมดุล (V = 1.0 pu)</li>
+                            <li><strong>Bus 2 (PV):</strong> โรงไฟฟ้าสำรอง ควบคุมแรงดัน (V = 1.02 pu)</li>
+                            <li><strong>Bus 3 (PQ):</strong> ศูนย์โหลด ต้องการกำลังไฟฟ้า (Load = 120 MW)</li>
+                        </ul>
+                    </div>
+                    <div class="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-500">
+                        <h3 class="font-semibold text-orange-800 mb-2">เป้าหมายการวิเคราะห์</h3>
+                        <ul class="list-disc list-inside text-sm text-orange-700 space-y-1">
+                            <li>หาค่า <strong>แรงดัน (Voltage)</strong> ที่ Bus 3</li>
+                            <li>ตรวจสอบ <strong>การไหลของกำลัง (Power Flow)</strong> ในสายส่ง</li>
+                            <li>วิเคราะห์ <strong>ความสูญเสีย (Losses)</strong> ในระบบ</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 2: The Interactive Lab -->
+        <section id="section-lab" class="scroll-mt-20">
+            <div class="flex flex-col md:flex-row justify-between items-end mb-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-800">ห้องปฏิบัติการจำลอง (Simulation Lab)</h2>
+                    <p class="text-sm text-gray-500">เลือกสถานการณ์จำลองและกดปุ่ม "คำนวณ Load Flow"</p>
+                </div>
+                
+                <!-- Controls -->
+                <div class="flex space-x-3 mt-4 md:mt-0">
+                    <select id="scenario-selector" class="bg-white border border-gray-300 text-gray-700 py-2 px-4 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="base">สถานการณ์ที่ 1: ปกติ (Base Case)</option>
+                        <option value="highload">สถานการณ์ที่ 2: โหลดสูง (High Load)</option>
+                        <option value="line1out">สถานการณ์ที่ 3: สายส่ง Line 1 ขัดข้อง (Line Trip)</option>
+                    </select>
+                    <button id="run-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow transition transform active:scale-95 flex items-center">
+                        <span id="run-btn-text">คำนวณ Load Flow</span>
+                        <svg id="run-spinner" class="animate-spin ml-2 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Interactive Diagram Area -->
+            <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden relative min-h-[500px]">
+                <!-- Diagram Container -->
+                <div class="relative w-full h-[500px] bg-gray-50 select-none">
+                    
+                    <!-- SVG Lines Layer -->
+                    <svg class="absolute inset-0 w-full h-full z-0 pointer-events-none" id="lines-layer">
+                        <!-- Line 1: Bus 1 to Bus 3 -->
+                        <line x1="20%" y1="20%" x2="50%" y2="80%" stroke="#CBD5E1" stroke-width="4" id="line1-bg" />
+                        <line x1="20%" y1="20%" x2="50%" y2="80%" stroke="#3B82F6" stroke-width="2" class="flow-line paused" id="line1-flow" />
+                        
+                        <!-- Line 2: Bus 2 to Bus 3 -->
+                        <line x1="80%" y1="20%" x2="50%" y2="80%" stroke="#CBD5E1" stroke-width="4" id="line2-bg" />
+                        <line x1="80%" y1="20%" x2="50%" y2="80%" stroke="#3B82F6" stroke-width="2" class="flow-line paused" id="line2-flow" />
+                    </svg>
+
+                    <!-- Connection Labels (Dynamic) -->
+                    <div id="label-line1" class="absolute bg-white px-2 py-1 rounded shadow text-xs text-gray-500 border hidden" style="left: 30%; top: 45%;">
+                        P: <span class="font-bold">--</span> MW
+                    </div>
+                    <div id="label-line2" class="absolute bg-white px-2 py-1 rounded shadow text-xs text-gray-500 border hidden" style="left: 65%; top: 45%;">
+                        P: <span class="font-bold">--</span> MW
+                    </div>
+
+                    <!-- Bus 1 (Slack) Node -->
+                    <div class="absolute top-[10%] left-[10%] w-48 bg-white rounded-lg shadow-md border-t-4 border-green-500 p-3 z-10 transition hover:shadow-xl cursor-pointer group" onclick="showBusInfo(1)">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold text-gray-800">Bus 1 (Slack)</span>
+                            <span class="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Ref</span>
+                        </div>
+                        <div class="text-xs space-y-1">
+                            <div class="flex justify-between text-gray-600"><span>V Set:</span> <span class="font-mono">1.00 pu</span></div>
+                            <div class="flex justify-between text-gray-600"><span>Angle:</span> <span class="font-mono">0.00°</span></div>
+                            <div class="h-px bg-gray-100 my-1"></div>
+                            <div class="flex justify-between text-green-700 font-semibold sim-result opacity-50"><span>P Gen:</span> <span id="res-b1-p">--</span> MW</div>
+                            <div class="flex justify-between text-green-700 font-semibold sim-result opacity-50"><span>Q Gen:</span> <span id="res-b1-q">--</span> Mvar</div>
+                        </div>
+                    </div>
+
+                    <!-- Bus 2 (PV) Node -->
+                    <div class="absolute top-[10%] right-[10%] w-48 bg-white rounded-lg shadow-md border-t-4 border-blue-500 p-3 z-10 transition hover:shadow-xl cursor-pointer group" onclick="showBusInfo(2)">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold text-gray-800">Bus 2 (PV)</span>
+                            <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Gen</span>
+                        </div>
+                        <div class="text-xs space-y-1">
+                            <div class="flex justify-between text-gray-600"><span>V Set:</span> <span class="font-mono">1.02 pu</span></div>
+                            <div class="flex justify-between text-gray-600"><span>P Gen:</span> <span class="font-mono">50.0 MW</span></div>
+                            <div class="h-px bg-gray-100 my-1"></div>
+                            <div class="flex justify-between text-blue-700 font-semibold sim-result opacity-50"><span>Angle:</span> <span id="res-b2-a">--</span>°</div>
+                            <div class="flex justify-between text-blue-700 font-semibold sim-result opacity-50"><span>Q Gen:</span> <span id="res-b2-q">--</span> Mvar</div>
+                        </div>
+                    </div>
+
+                    <!-- Bus 3 (PQ) Node -->
+                    <div class="absolute bottom-[10%] left-1/2 transform -translate-x-1/2 w-56 bg-white rounded-lg shadow-md border-t-4 border-orange-500 p-3 z-10 transition hover:shadow-xl cursor-pointer group" onclick="showBusInfo(3)">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold text-gray-800">Bus 3 (Load)</span>
+                            <span class="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full">PQ</span>
+                        </div>
+                        <div class="text-xs space-y-1">
+                            <div class="flex justify-between text-gray-600"><span>Load P:</span> <span class="font-mono" id="val-b3-p">120.0 MW</span></div>
+                            <div class="flex justify-between text-gray-600"><span>Load Q:</span> <span class="font-mono">40.0 Mvar</span></div>
+                            <div class="h-px bg-gray-100 my-1"></div>
+                            <div class="flex justify-between text-orange-700 font-semibold text-sm sim-result opacity-50 bg-orange-50 p-1 rounded">
+                                <span>Voltage:</span> <span id="res-b3-v">--</span> pu
+                            </div>
+                            <div class="flex justify-between text-orange-700 font-semibold sim-result opacity-50"><span>Angle:</span> <span id="res-b3-a">--</span>°</div>
+                        </div>
+                    </div>
+
+                    <!-- Info Box (Bottom Right Overlay) -->
+                    <div class="absolute bottom-4 right-4 bg-white/90 backdrop-blur p-4 rounded-lg border border-gray-200 text-sm shadow-sm max-w-xs">
+                        <h4 class="font-bold text-gray-700 mb-2">สถานะระบบ</h4>
+                        <div class="flex items-center space-x-2 mb-1">
+                            <span class="w-3 h-3 rounded-full bg-gray-300" id="status-indicator"></span>
+                            <span id="status-text">รอการคำนวณ...</span>
+                        </div>
+                        <p class="text-xs text-gray-500">คลิกที่ Bus เพื่อดูรายละเอียดเพิ่มเติม</p>
+                    </div>
+
+                </div>
+            </div>
+            
+            <!-- Data Tables (Collapsible) -->
+            <div class="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                <button onclick="toggleDetails()" class="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition">
+                    <span class="font-semibold text-gray-700">📋 ตารางข้อมูลระบบ (System Data)</span>
+                    <svg id="arrow-icon" class="w-5 h-5 text-gray-500 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="data-tables" class="hidden p-4 grid md:grid-cols-2 gap-8 bg-white">
+                    <div>
+                        <h4 class="text-sm font-bold text-gray-600 mb-2">ข้อมูลสายส่ง (Line Data) (Base S = 100 MVA)</h4>
+                        <table class="w-full text-sm text-left text-gray-500">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                                <tr><th class="px-2 py-2">Line</th><th class="px-2 py-2">From-To</th><th class="px-2 py-2">R (pu)</th><th class="px-2 py-2">X (pu)</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b"><td>1</td><td>1 - 3</td><td>0.02</td><td>0.06</td></tr>
+                                <tr class="border-b"><td>2</td><td>2 - 3</td><td>0.01</td><td>0.03</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold text-gray-600 mb-2">พารามิเตอร์เริ่มต้น (Initial Parameters)</h4>
+                        <table class="w-full text-sm text-left text-gray-500">
+                            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                                <tr><th class="px-2 py-2">Bus</th><th class="px-2 py-2">Type</th><th class="px-2 py-2">Set P (MW)</th><th class="px-2 py-2">Set V (pu)</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr class="border-b"><td>1</td><td>Slack</td><td>-</td><td>1.00</td></tr>
+                                <tr class="border-b"><td>2</td><td>PV</td><td>50</td><td>1.02</td></tr>
+                                <tr class="border-b"><td>3</td><td>PQ</td><td>-120</td><td>-</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECTION 3: Analysis & Visualization -->
+        <section id="section-analysis" class="space-y-6 scroll-mt-20 opacity-50 pointer-events-none transition-opacity duration-500">
+            <div class="border-t border-gray-200 pt-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">การวิเคราะห์ผลลัพธ์ (Results Analysis)</h2>
+                
+                <div class="grid lg:grid-cols-2 gap-8">
+                    <!-- Chart 1: Voltage Profile -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="font-bold text-gray-700 mb-4 flex items-center">
+                            <span class="w-2 h-6 bg-orange-500 rounded mr-2"></span>
+                            โปรไฟล์แรงดันไฟฟ้า (Voltage Profile)
+                        </h3>
+                        <p class="text-xs text-gray-500 mb-4">กราฟแสดงขนาดแรงดันไฟฟ้าที่แต่ละบัสเทียบกับเกณฑ์มาตรฐาน (0.95 pu)</p>
+                        <div class="chart-container">
+                            <canvas id="voltageChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Chart 2: Power Balance -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="font-bold text-gray-700 mb-4 flex items-center">
+                            <span class="w-2 h-6 bg-blue-500 rounded mr-2"></span>
+                            สมดุลกำลังไฟฟ้า (Power Balance)
+                        </h3>
+                        <p class="text-xs text-gray-500 mb-4">สัดส่วนการผลิตจากแหล่งกำเนิดเทียบกับโหลดและความสูญเสีย</p>
+                        <div class="chart-container">
+                            <canvas id="powerChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Discussion & Key Takeaways -->
+                <div class="mt-8 bg-indigo-50 rounded-xl p-6 border border-indigo-100">
+                    <h3 class="text-lg font-bold text-indigo-900 mb-4">สรุปผลการทดลองและการอภิปราย</h3>
+                    <div id="analysis-text" class="prose prose-sm max-w-none text-indigo-800">
+                        <p>กรุณากดปุ่ม <strong>"คำนวณ Load Flow"</strong> เพื่อดูผลการวิเคราะห์</p>
+                    </div>
+                </div>
+                
+                <!-- Q&A Section based on source -->
+                <div class="mt-8 space-y-4">
+                    <h3 class="text-lg font-bold text-gray-800">คำถามท้ายบทเรียน</h3>
+                    
+                    <div class="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                        <button class="w-full text-left px-6 py-4 bg-gray-50 font-medium text-gray-700 hover:bg-gray-100 focus:outline-none flex justify-between items-center" onclick="toggleAnswer('q1')">
+                            1. ถ้าค่าแรงดันที่ Bus 3 ต่ำเกินไป (เช่น 0.90 pu) จะแก้ไขอย่างไร?
+                            <span class="text-blue-500">+</span>
+                        </button>
+                        <div id="q1" class="hidden px-6 py-4 text-gray-600 bg-white border-t border-gray-200">
+                            <strong>แนวทางแก้ไข:</strong> ปัญหานี้เกิดจาก Voltage Drop ในสายส่งสูง วิธีแก้คือ:
+                            <ul class="list-disc list-inside mt-2 ml-2">
+                                <li>ติดตั้ง <strong>Capacitor Bank</strong> ที่ Bus 3 เพื่อจ่าย Q ชดเชย (Shunt Compensation)</li>
+                                <li>ปรับเพิ่มแรงดันที่ <strong>Generator Bus (Bus 2)</strong> ให้สูงขึ้น</li>
+                                <li>เปลี่ยนขนาดสายส่งให้ใหญ่ขึ้น (ลดค่า X) เพื่อลดแรงดันตก</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                        <button class="w-full text-left px-6 py-4 bg-gray-50 font-medium text-gray-700 hover:bg-gray-100 focus:outline-none flex justify-between items-center" onclick="toggleAnswer('q2')">
+                            2. บทบาทของ Slack Bus คืออะไรในการทดลองนี้?
+                            <span class="text-blue-500">+</span>
+                        </button>
+                        <div id="q2" class="hidden px-6 py-4 text-gray-600 bg-white border-t border-gray-200">
+                            <strong>คำตอบ:</strong> Slack Bus (Bus 1) ทำหน้าที่เป็นตัวปรับสมดุลของระบบ โดยจะจ่ายกำลังไฟฟ้าจริง (P) และรีแอกทีฟ (Q) ส่วนที่ขาดหรือรับส่วนที่เกิน เพื่อให้สมการ Power Balance เป็นจริง:
+                            <br><code class="bg-gray-100 px-2 py-1 rounded text-xs mt-2 block w-max">P_slack = P_load + P_losses - P_gen_other</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 mt-12 py-8">
+        <div class="max-w-7xl mx-auto px-4 text-center text-gray-400 text-sm">
+            <p>ระบบจำลองการเรียนรู้เทคโนโลยีไฟฟ้า (Electrical Technology Education Simulator)</p>
+            <p class="mt-2">พัฒนาเพื่อประกอบการเรียนการสอนรายวิชาการวิเคราะห์ระบบไฟฟ้ากำลัง</p>
+        </div>
+    </footer>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // --- DATA & STATE MANAGEMENT ---
+        
+        // Simulation Scenarios (Pre-calculated approximations for educational purposes)
+        const scenarios = {
+            base: {
+                name: "ปกติ (Base Case)",
+                desc: "ระบบทำงานปกติตามค่าพารามิเตอร์ที่กำหนด",
+                inputs: { b3_load: 120, line1_status: true },
+                results: {
+                    bus1: { p: 72.8, q: 24.5, v: 1.00, angle: 0 },
+                    bus2: { p: 50.0, q: 20.2, v: 1.02, angle: -1.2 },
+                    bus3: { p: -120, q: -40, v: 0.965, angle: -4.8 }, // V drop slightly
+                    line1: { p_flow: 72.8, p_loss: 2.1 }, // Flows to 3
+                    line2: { p_flow: 50.0, p_loss: 0.7 },
+                    total_loss: 2.8
+                },
+                analysis: "ในสภาวะปกติ แรงดันที่ Bus 3 ตกลงมาอยู่ที่ <strong>0.965 pu</strong> ซึ่งยังอยู่ในเกณฑ์ที่ยอมรับได้ (>0.95). Bus 1 (Slack) ต้องจ่ายกำลังไฟฟ้าประมาณ 72.8 MW เพื่อเสริมกับ Bus 2 (50 MW) ให้เพียงพอกับโหลดและความสูญเสีย"
+            },
+            highload: {
+                name: "โหลดสูง (High Load)",
+                desc: "เพิ่มโหลดที่ Bus 3 เป็น 180 MW",
+                inputs: { b3_load: 180, line1_status: true },
+                results: {
+                    bus1: { p: 135.5, q: 55.0, v: 1.00, angle: 0 },
+                    bus2: { p: 50.0, q: 45.0, v: 1.02, angle: -2.5 }, // Q limits might hit
+                    bus3: { p: -180, q: -60, v: 0.925, angle: -8.5 }, // Low Voltage!
+                    line1: { p_flow: 135.5, p_loss: 4.5 },
+                    line2: { p_flow: 50.0, p_loss: 1.0 },
+                    total_loss: 5.5
+                },
+                analysis: "<span class='text-red-600 font-bold'>Warning:</span> แรงดันที่ Bus 3 ตกลงมาเหลือ <strong>0.925 pu</strong> ซึ่งต่ำกว่าเกณฑ์มาตรฐาน (Under Voltage). ความสูญเสียในระบบเพิ่มสูงขึ้นอย่างมากเนื่องจากกระแสที่ไหลใน Line 1 เพิ่มขึ้น"
+            },
+            line1out: {
+                name: "Line 1 Trip",
+                desc: "จำลองสายส่ง Line 1 ขาดออกจากระบบ",
+                inputs: { b3_load: 120, line1_status: false },
+                results: {
+                    bus1: { p: 0, q: 0, v: 1.00, angle: 0 }, // No path
+                    bus2: { p: 125.0, q: 60.0, v: 1.02, angle: 0 }, // Bus 2 takes all load? Actually in reality Slack picks up, but here line 1 connects Slack to Load. If Line 1 opens, Slack is disconnected from load? No, check diagram. Diagram: B1-B3, B2-B3. If L1 open, B1 disconnected from B3. B2 must supply everything or blackout. Assuming B2 has capacity (unlikely 50MW gen supplying 120MW).
+                    // Correction: In typical simulator, if Slack disconnects, islanding occurs. 
+                    // Let's assume for this specific educational setup: B1 and B2 are NOT connected directly. 
+                    // So if Line 1 (B1-B3) trips, B3 is only fed by B2.
+                    // Since B2 is set to 50MW PV, it cannot supply 120MW. System collapses or B2 becomes new Swing.
+                    // Let's simulate "System Overload / Collapse" visually.
+                    bus3: { p: 0, q: 0, v: 0.00, angle: 0 }, // Collapse
+                    line1: { p_flow: 0, p_loss: 0 },
+                    line2: { p_flow: 0, p_loss: 0 },
+                    total_loss: 0
+                },
+                analysis: "<span class='text-red-600 font-bold'>SYSTEM COLLAPSE:</span> เนื่องจากไม่มีสายเชื่อมโยงระหว่าง Bus 1 และ Bus 2, การตัด Line 1 ทำให้ Bus 3 รับไฟจาก Bus 2 เท่านั้น แต่ Bus 2 ผลิตได้เพียง 50MW ขณะที่โหลดคือ 120MW ทำให้ระบบล่ม (Blackout) หรือแรงดันตกจนใช้งานไม่ได้"
+            }
+        };
+
+        let charts = {};
+
+        // --- UI FUNCTIONS ---
+
+        function navTo(id) {
+            document.querySelectorAll('main > section').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('nav button').forEach(el => {
+                el.classList.remove('bg-blue-50', 'text-blue-600');
+                el.classList.add('text-gray-700');
+            });
+            
+            const target = document.getElementById(id);
+            target.classList.remove('hidden');
+            
+            // Find button that triggered or matches
+            // Simple visual update logic handled by onclick classes in HTML for simplicity, 
+            // but for robust nav we'd update state classes here.
+        }
+
+        function toggleDetails() {
+            const el = document.getElementById('data-tables');
+            const icon = document.getElementById('arrow-icon');
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                icon.classList.add('rotate-180');
+            } else {
+                el.classList.add('hidden');
+                icon.classList.remove('rotate-180');
+            }
+        }
+
+        function toggleAnswer(id) {
+            const el = document.getElementById(id);
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        }
+
+        // --- SIMULATION LOGIC ---
+
+        document.getElementById('run-btn').addEventListener('click', runSimulation);
+
+        function runSimulation() {
+            const scenarioKey = document.getElementById('scenario-selector').value;
+            const data = scenarios[scenarioKey];
+            
+            // UI Feedback
+            const btnText = document.getElementById('run-btn-text');
+            const spinner = document.getElementById('run-btn');
+            const spinIcon = document.getElementById('run-spinner');
+            
+            btnText.textContent = "กำลังคำนวณ...";
+            spinIcon.classList.remove('hidden');
+            document.getElementById('status-indicator').className = "w-3 h-3 rounded-full bg-yellow-400 animate-pulse";
+            document.getElementById('status-text').textContent = "กำลังรัน Newton-Raphson...";
+
+            // "Simulate" delay
+            setTimeout(() => {
+                updateVisuals(data);
+                updateCharts(data);
+                
+                // Unlock Analysis Section
+                const analysisSec = document.getElementById('section-analysis');
+                analysisSec.classList.remove('opacity-50', 'pointer-events-none');
+                
+                // Reset Button
+                btnText.textContent = "คำนวณ Load Flow";
+                spinIcon.classList.add('hidden');
+                document.getElementById('status-indicator').className = "w-3 h-3 rounded-full bg-green-500";
+                document.getElementById('status-text').textContent = "คำนวณเสร็จสิ้น (Converged)";
+                
+                // Auto scroll to analysis on small screens
+                if(window.innerWidth < 768) {
+                    analysisSec.scrollIntoView({behavior: 'smooth'});
+                }
+            }, 1500);
+        }
+
+        function updateVisuals(data) {
+            const r = data.results;
+
+            // Update Bus 1
+            updateText('res-b1-p', r.bus1.p.toFixed(1));
+            updateText('res-b1-q', r.bus1.q.toFixed(1));
+
+            // Update Bus 2
+            updateText('res-b2-a', r.bus2.angle.toFixed(1));
+            updateText('res-b2-q', r.bus2.q.toFixed(1));
+
+            // Update Bus 3 (The Load Bus - Critical)
+            const v3El = document.getElementById('res-b3-v');
+            v3El.textContent = r.bus3.v.toFixed(3);
+            if(r.bus3.v < 0.95) {
+                v3El.parentElement.classList.add('bg-red-100', 'text-red-700');
+                v3El.parentElement.classList.remove('bg-orange-50', 'text-orange-700');
+            } else {
+                v3El.parentElement.classList.remove('bg-red-100', 'text-red-700');
+                v3El.parentElement.classList.add('bg-orange-50', 'text-orange-700');
+            }
+            updateText('res-b3-a', r.bus3.angle.toFixed(1));
+            updateText('val-b3-p', data.inputs.b3_load + ' MW');
+
+            // Update Lines
+            const l1Flow = document.getElementById('line1-flow');
+            const l2Flow = document.getElementById('line2-flow');
+            
+            if (data.inputs.line1_status) {
+                l1Flow.style.opacity = '1';
+                l1Flow.classList.remove('paused');
+                document.getElementById('label-line1').classList.remove('hidden');
+                document.querySelector('#label-line1 span').textContent = r.line1.p_flow.toFixed(1);
+            } else {
+                l1Flow.style.opacity = '0.1'; // Trip
+                l1Flow.classList.add('paused');
+                document.getElementById('label-line1').classList.add('hidden');
+            }
+
+            l2Flow.classList.remove('paused');
+            document.getElementById('label-line2').classList.remove('hidden');
+            document.querySelector('#label-line2 span').textContent = r.line2.p_flow.toFixed(1);
+
+            // Update Text Analysis
+            document.getElementById('analysis-text').innerHTML = `<p>${data.analysis}</p>`;
+        }
+
+        function updateText(id, val) {
+            const el = document.getElementById(id);
+            if(el) {
+                el.parentElement.classList.remove('opacity-50');
+                el.textContent = val;
+            }
+        }
+
+        function updateCharts(data) {
+            const r = data.results;
+
+            // 1. Voltage Profile Chart
+            const ctxV = document.getElementById('voltageChart').getContext('2d');
+            if (charts.voltage) charts.voltage.destroy();
+            
+            charts.voltage = new Chart(ctxV, {
+                type: 'bar',
+                data: {
+                    labels: ['Bus 1 (Slack)', 'Bus 2 (PV)', 'Bus 3 (PQ)'],
+                    datasets: [{
+                        label: 'Voltage (pu)',
+                        data: [r.bus1.v, r.bus2.v, r.bus3.v],
+                        backgroundColor: [
+                            '#10B981', // Green
+                            '#3B82F6', // Blue
+                            r.bus3.v < 0.95 ? '#EF4444' : '#F97316'  // Orange/Red
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: 0.8,
+                            max: 1.1,
+                            title: { display: true, text: 'Voltage (pu)' },
+                            grid: { color: (ctx) => ctx.tick.value === 0.95 ? '#EF4444' : '#E5E7EB', lineWidth: (ctx) => ctx.tick.value === 0.95 ? 2 : 1 } // Red line at 0.95 limit
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        annotation: {
+                            annotations: {
+                                line1: {
+                                    type: 'line',
+                                    yMin: 0.95,
+                                    yMax: 0.95,
+                                    borderColor: 'red',
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                    label: { content: 'Min Limit', enabled: true }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // 2. Power Balance Chart (Doughnut)
+            const ctxP = document.getElementById('powerChart').getContext('2d');
+            if (charts.power) charts.power.destroy();
+
+            const totalGen = r.bus1.p + r.bus2.p;
+            const totalLoad = Math.abs(r.bus3.p); // Load is negative in model, showing absolute
+            const losses = r.total_loss;
+
+            charts.power = new Chart(ctxP, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Load (โหลด)', 'Losses (ความสูญเสีย)', 'Spare Gen (กำลังผลิตเหลือ)'],
+                    datasets: [{
+                        data: [totalLoad, losses, (totalGen - totalLoad - losses) > 0 ? (totalGen - totalLoad - losses) : 0],
+                        backgroundColor: ['#F97316', '#6B7280', '#10B981'],
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Total Generation: ${totalGen.toFixed(1)} MW`
+                        }
+                    }
+                }
+            });
+        }
+
+        function showBusInfo(id) {
+            // Simple visual feedback or could open a modal
+            // Currently logic is handled by the hover state and data update
+            console.log("Bus " + id + " clicked");
+        }
+
+        // Initialize with hidden sections
+        document.addEventListener('DOMContentLoaded', () => {
+             // Ensure lab section is visible initially or navigate to intro
+             navTo('section-intro');
+        });
+
+    </script>
+    
+    <!-- Visualization & Content Choices:
+         - SVG Diagram: Chosen for the main visualizer because it scales perfectly and allows simple CSS animations for flow lines, which is highly engaging for "Load Flow".
+         - Chart.js: Used for Voltage Profile (Bar) and Power Balance (Doughnut). Standard, responsive, and clear for comparing quantitative results.
+         - Tailwind Layout: Grid/Flex used for responsive design.
+         - Scenario Logic: Pre-calculated "scenarios" (Base, High Load, Fault) allow users to explore cause-and-effect without needing a complex backend mathematical solver, fitting the educational goal perfectly.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used (Except structured inline SVG for lines diagram which is permitted as layout element, not an image file). NO Mermaid JS used. -->
+</body>
+</html>
