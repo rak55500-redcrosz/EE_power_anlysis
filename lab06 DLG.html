@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DLG Fault Virtual Simulation Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&family=Chakra+Petch:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f1f5f9; }
+        .tech-font { font-family: 'Chakra Petch', sans-serif; }
+        .slide-container {
+            background-color: #0f172a;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            min-height: 720px;
+            padding: 30px;
+            position: relative;
+            width: 100%;
+            max-width: 1280px;
+            margin: auto;
+            color: #e2e8f0;
+        }
+
+        .control-panel { background: #1e293b; border-radius: 1rem; border: 1px solid #334155; }
+        .visual-panel { background: #020617; border-radius: 1rem; border: 1px solid #1e293b; height: 100%; }
+
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #334155; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb { height: 18px; width: 18px; border-radius: 50%; background: #22c55e; cursor: pointer; -webkit-appearance: none; margin-top: -6px; }
+
+        .fault-spark {
+            animation: spark-flash 0.3s infinite;
+        }
+        @keyframes spark-flash {
+            0%, 100% { opacity: 0.5; transform: scale(1); filter: drop-shadow(0 0 5px orange); }
+            50% { opacity: 1; transform: scale(1.3); filter: drop-shadow(0 0 20px red); }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex justify-center">
+
+    <div class="slide-container">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-green-400 tech-font">⚡ ห้องปฏิบัติการจำลอง DLG Fault</h1>
+                <p class="text-slate-400">Double Line-to-Ground Fault Analysis (Phases B & C to Ground)</p>
+            </div>
+            <div class="bg-slate-800 border border-slate-600 p-2 px-4 rounded-full text-sm">
+                <strong class="text-green-400">Status:</strong> <span id="sys-status" class="text-slate-300">Ready</span>
+            </div>
+        </header>
+
+        <div class="grid lg:grid-cols-12 gap-6">
+            
+            <!-- Left: Controls (4 cols) -->
+            <div class="lg:col-span-4 space-y-4">
+                <div class="control-panel p-5">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-white">
+                        <i class="fa-solid fa-sliders"></i> Control Panel
+                    </h2>
+
+                    <!-- Fault Toggle -->
+                    <div class="mb-6 grid grid-cols-2 gap-2">
+                        <button onclick="setFault(false)" id="btn-normal" class="py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-500 transition">Normal</button>
+                        <button onclick="setFault(true)" id="btn-fault" class="py-2 rounded bg-slate-700 text-slate-300 font-bold hover:bg-red-600 hover:text-white transition">DLG Fault</button>
+                    </div>
+
+                    <!-- Sliders -->
+                    <div class="space-y-5 text-sm">
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-slate-400">Z1 (Positive Seq)</span>
+                                <span class="text-green-400 font-mono" id="z1-val">0.15 pu</span>
+                            </div>
+                            <input type="range" id="z1-in" min="0.05" max="0.5" step="0.01" value="0.15" oninput="updateSim()">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-slate-400">Z2 (Negative Seq)</span>
+                                <span class="text-green-400 font-mono" id="z2-val">0.15 pu</span>
+                            </div>
+                            <input type="range" id="z2-in" min="0.05" max="0.5" step="0.01" value="0.15" oninput="updateSim()">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-slate-400">Z0 (Zero Seq)</span>
+                                <span class="text-green-400 font-mono" id="z0-val">0.10 pu</span>
+                            </div>
+                            <input type="range" id="z0-in" min="0.01" max="0.5" step="0.01" value="0.10" oninput="updateSim()">
+                        </div>
+
+                        <div class="p-3 bg-slate-800 rounded border border-slate-600">
+                            <div class="flex justify-between mb-1">
+                                <span class="text-amber-400 font-bold">NGR (Zn)</span>
+                                <span class="text-amber-400 font-mono" id="zn-val">0.00 pu</span>
+                            </div>
+                            <input type="range" id="zn-in" min="0" max="1.0" step="0.05" value="0" oninput="updateSim()" style="accent-color: #f59e0b;">
+                            <p class="text-[10px] text-slate-500 mt-1 italic">Zn มีผลต่อกระแสกราวด์และแรงดันเฟส A</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sequence Network Diagram -->
+                <div class="bg-slate-800 p-4 rounded-xl border border-slate-600 text-center">
+                    <h3 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Sequence Network Connection</h3>
+                    <div class="flex flex-col items-center justify-center gap-2 p-2 bg-slate-900 rounded border border-slate-700">
+                        <div class="border border-blue-500 text-blue-300 text-xs px-2 py-1 rounded w-32 bg-blue-900/20">Z1 (Positive)</div>
+                        <div class="relative w-48 h-8">
+                            <div class="absolute top-0 left-1/2 w-0.5 h-full bg-slate-500 -translate-x-1/2"></div>
+                            <div class="absolute top-1/2 left-0 w-full h-0.5 bg-slate-500"></div>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="border border-indigo-500 text-indigo-300 text-xs px-2 py-1 rounded w-24 bg-indigo-900/20">Z2 (Neg)</div>
+                            <div class="border border-amber-500 text-amber-300 text-xs px-2 py-1 rounded w-24 bg-amber-900/20">Z0 + 3Zn</div>
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-slate-500 mt-2">Z1 ต่ออนุกรมกับ (Z2 ขนาน Z0)</p>
+                </div>
+            </div>
+
+            <!-- Right: Visuals (8 cols) -->
+            <div class="lg:col-span-8 space-y-4">
+                
+                <!-- Main Diagram & Phasor (Forced Horizontal Layout) -->
+                <div class="grid grid-cols-2 gap-4 h-64">
+                    <!-- Circuit Diagram -->
+                    <div class="visual-panel p-2 relative flex flex-col justify-center overflow-hidden">
+                        <div class="absolute top-2 left-2 text-[10px] font-bold text-slate-500 uppercase">System Diagram</div>
+                        
+                        <div class="flex items-center w-full px-2 scale-90">
+                            <div class="w-10 h-10 rounded-full border-2 border-slate-500 flex items-center justify-center bg-slate-800 text-xs font-bold text-white z-10 shrink-0">G</div>
+                            
+                            <div class="flex-grow flex flex-col gap-4 ml-2 relative">
+                                <!-- Phase A -->
+                                <div class="h-0.5 w-full bg-red-500 relative opacity-40">
+                                    <span class="absolute -top-3 left-0 text-[8px] text-red-400">Ph A</span>
+                                </div>
+                                
+                                <!-- Phase B -->
+                                <div class="h-0.5 w-full bg-yellow-400 relative">
+                                    <span class="absolute -top-3 left-0 text-[8px] text-yellow-300">Ph B</span>
+                                    <div id="spark-b" class="hidden absolute right-4 -top-2 text-lg fault-spark">⚡</div>
+                                    <div id="fault-line-b" class="hidden absolute right-4 top-0 w-0.5 h-12 bg-yellow-500 z-0"></div>
+                                </div>
+                                
+                                <!-- Phase C -->
+                                <div class="h-0.5 w-full bg-blue-400 relative">
+                                    <span class="absolute -top-3 left-0 text-[8px] text-blue-300">Ph C</span>
+                                    <div id="spark-c" class="hidden absolute right-4 -top-2 text-lg fault-spark">⚡</div>
+                                    <div id="fault-line-c" class="hidden absolute right-4 top-0 w-0.5 h-6 bg-blue-500 z-0"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Ground -->
+                        <div class="absolute bottom-4 right-8 flex flex-col items-center">
+                            <div class="w-6 h-0.5 bg-slate-500"></div>
+                            <div class="w-4 h-0.5 bg-slate-500 mt-0.5"></div>
+                            <div class="w-2 h-0.5 bg-slate-500 mt-0.5"></div>
+                            <span class="text-[8px] text-slate-500 mt-1">GND</span>
+                        </div>
+                    </div>
+
+                    <!-- Phasor Chart -->
+                    <div class="visual-panel p-2 flex flex-col items-center justify-center relative">
+                        <div class="absolute top-2 left-2 text-[10px] font-bold text-slate-500 uppercase">Voltage Phasor</div>
+                        <div class="w-full h-full flex items-center justify-center p-2">
+                            <canvas id="phasorCanvas" style="max-height: 200px; max-width: 200px;"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Grid -->
+                <div class="grid grid-cols-4 gap-2 text-center">
+                    <div class="bg-slate-800 p-2 rounded-lg border border-slate-700">
+                        <div class="text-[9px] text-slate-400 uppercase font-bold">Ia (Healthy)</div>
+                        <div class="text-base font-bold tech-font text-slate-500" id="res-ia">0.00</div>
+                    </div>
+                    <div class="bg-slate-800 p-2 rounded-lg border border-slate-700 border-b-2 border-b-yellow-500">
+                        <div class="text-[9px] text-slate-400 uppercase font-bold">Ib (Fault)</div>
+                        <div class="text-base font-bold tech-font text-yellow-400" id="res-ib">0.00</div>
+                    </div>
+                    <div class="bg-slate-800 p-2 rounded-lg border border-slate-700 border-b-2 border-b-blue-500">
+                        <div class="text-[9px] text-slate-400 uppercase font-bold">Ic (Fault)</div>
+                        <div class="text-base font-bold tech-font text-blue-400" id="res-ic">0.00</div>
+                    </div>
+                    <div class="bg-slate-800 p-2 rounded-lg border border-slate-700 border-b-2 border-b-green-500">
+                        <div class="text-[9px] text-slate-400 uppercase font-bold">Ig (Ground)</div>
+                        <div class="text-base font-bold tech-font text-green-400" id="res-ig">0.00</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2 text-center">
+                    <div class="bg-slate-800 p-2 rounded border border-slate-700">
+                        <span class="text-[9px] text-red-300 block">Va</span>
+                        <span class="font-mono text-sm" id="res-va">1.00</span>
+                    </div>
+                    <div class="bg-slate-800 p-2 rounded border border-slate-700">
+                        <span class="text-[9px] text-yellow-300 block">Vb</span>
+                        <span class="font-mono text-sm" id="res-vb">1.00</span>
+                    </div>
+                    <div class="bg-slate-800 p-2 rounded border border-slate-700">
+                        <span class="text-[9px] text-blue-300 block">Vc</span>
+                        <span class="font-mono text-sm" id="res-vc">1.00</span>
+                    </div>
+                </div>
+
+                <!-- Analysis Text -->
+                <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+                    <p class="text-sm text-slate-300 leading-relaxed" id="lab-analysis">
+                        กดปุ่ม <strong>DLG Fault</strong> เพื่อเริ่มจำลองเหตุการณ์
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Complex Number Utility
+        class Complex {
+            constructor(r, i) { this.r = r; this.i = i; }
+            add(o) { return new Complex(this.r + o.r, this.i + o.i); }
+            sub(o) { return new Complex(this.r - o.r, this.i - o.i); }
+            mul(o) { return new Complex(this.r * o.r - this.i * o.i, this.r * o.i + this.i * o.r); }
+            div(o) {
+                const den = o.r*o.r + o.i*o.i;
+                return new Complex((this.r*o.r + this.i*o.i)/den, (this.i*o.r - this.r*o.i)/den);
+            }
+            scale(s) { return new Complex(this.r * s, this.i * s); }
+            mag() { return Math.sqrt(this.r*this.r + this.i*this.i); }
+        }
+
+        const a = new Complex(-0.5, 0.866);
+        const a2 = new Complex(-0.5, -0.866);
+        const one = new Complex(1, 0);
+        const zero = new Complex(0, 0);
+
+        let isFaultActive = false;
+        let phasorChart;
+
+        function setFault(status) {
+            isFaultActive = status;
+            const btnNorm = document.getElementById('btn-normal');
+            const btnFault = document.getElementById('btn-fault');
+            const statusLabel = document.getElementById('sys-status');
+            const sparks = document.querySelectorAll('.fault-spark');
+            const faultLines = [document.getElementById('fault-line-b'), document.getElementById('fault-line-c')];
+
+            if(status) {
+                btnFault.className = "py-2 rounded bg-red-600 text-white font-bold shadow-lg shadow-red-500/30 transition";
+                btnNorm.className = "py-2 rounded bg-slate-700 text-slate-400 font-bold transition";
+                statusLabel.innerText = "CRITICAL: DLG FAULT";
+                statusLabel.className = "text-red-500 font-bold animate-pulse";
+                sparks.forEach(s => s.classList.remove('hidden'));
+                faultLines.forEach(l => l.classList.remove('hidden'));
+            } else {
+                btnNorm.className = "py-2 rounded bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/30 transition";
+                btnFault.className = "py-2 rounded bg-slate-700 text-slate-400 font-bold transition";
+                statusLabel.innerText = "Normal Operation";
+                statusLabel.className = "text-green-400 font-bold";
+                sparks.forEach(s => s.classList.add('hidden'));
+                faultLines.forEach(l => l.classList.add('hidden'));
+            }
+            updateSim();
+        }
+
+        function updateSim() {
+            const z1_mag = parseFloat(document.getElementById('z1-in').value);
+            const z2_mag = parseFloat(document.getElementById('z2-in').value);
+            const z0_mag = parseFloat(document.getElementById('z0-in').value);
+            const zn_mag = parseFloat(document.getElementById('zn-in').value);
+
+            document.getElementById('z1-val').innerText = z1_mag.toFixed(2) + " pu";
+            document.getElementById('z2-val').innerText = z2_mag.toFixed(2) + " pu";
+            document.getElementById('z0-val').innerText = z0_mag.toFixed(2) + " pu";
+            document.getElementById('zn-val').innerText = zn_mag.toFixed(2) + " pu";
+
+            let va = one, vb = a2, vc = a;
+            let ia = zero, ib = zero, ic = zero, ig = zero;
+            let analysis = "ระบบทำงานปกติ แรงดันสมดุล กระแสโหลดเป็นศูนย์ (No Load Assumption)";
+
+            if(isFaultActive) {
+                const z1 = new Complex(0, z1_mag);
+                const z2 = new Complex(0, z2_mag);
+                const z0_tot = new Complex(3*zn_mag, z0_mag);
+                
+                const num = z2.mul(z0_tot);
+                const den = z2.add(z0_tot);
+                const z_par = num.div(den);
+
+                const z_total = z1.add(z_par);
+                const ia1 = one.div(z_total);
+
+                const v_seq = one.sub(ia1.mul(z1)); 
+
+                const ia2 = v_seq.div(z2).mul(new Complex(-1, 0));
+                const ia0 = v_seq.div(z0_tot).mul(new Complex(-1, 0));
+
+                ia = ia0.add(ia1).add(ia2); 
+                ib = ia0.add(a2.mul(ia1)).add(a.mul(ia2));
+                ic = ia0.add(a.mul(ia1)).add(a2.mul(ia2));
+                ig = ib.add(ic);
+
+                va = v_seq.scale(3);
+                vb = zero; 
+                vc = zero;
+
+                analysis = `เกิดการลัดวงจร <strong>DLG</strong> เฟส B และ C ลงดิน! <br> 
+                1. แรงดันเฟส B และ C ตกเหลือ <strong>0.00 pu</strong> <br>
+                2. แรงดันเฟส A (Va) ดีดตัวสูงขึ้นเป็น <strong>${va.mag().toFixed(2)} pu</strong> (Voltage Swell) เนื่องจากผลของ Z0 และ Zn <br>
+                3. กระแสไหลลงกราวด์ (Ig) มีขนาด <strong>${ig.mag().toFixed(2)} pu</strong>`;
+            }
+
+            document.getElementById('res-ia').innerText = ia.mag().toFixed(2);
+            document.getElementById('res-ib').innerText = ib.mag().toFixed(2);
+            document.getElementById('res-ic').innerText = ic.mag().toFixed(2);
+            document.getElementById('res-ig').innerText = ig.mag().toFixed(2);
+
+            document.getElementById('res-va').innerText = va.mag().toFixed(2);
+            document.getElementById('res-vb').innerText = vb.mag().toFixed(2);
+            document.getElementById('res-vc').innerText = vc.mag().toFixed(2);
+            
+            document.getElementById('lab-analysis').innerHTML = analysis;
+
+            updatePhasor(va, vb, vc);
+        }
+
+        function initPhasor() {
+            const ctx = document.getElementById('phasorCanvas').getContext('2d');
+            phasorChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        { label: 'Va', data: [{x:0,y:0}], borderColor: '#ef4444', showLine: true, borderWidth: 3, pointRadius: 0 },
+                        { label: 'Vb', data: [{x:0,y:0}], borderColor: '#facc15', showLine: true, borderWidth: 3, pointRadius: 0 },
+                        { label: 'Vc', data: [{x:0,y:0}], borderColor: '#3b82f6', showLine: true, borderWidth: 3, pointRadius: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { min: -3, max: 3, grid: { color: '#334155' }, display: false },
+                        y: { min: -3, max: 3, grid: { color: '#334155' }, display: false }
+                    },
+                    plugins: { legend: { display: false } },
+                    animation: { duration: 0 }
+                }
+            });
+        }
+
+        function updatePhasor(va, vb, vc) {
+            phasorChart.data.datasets[0].data = [{x:0, y:0}, {x: va.r, y: va.i}];
+            phasorChart.data.datasets[1].data = [{x:0, y:0}, {x: vb.r, y: vb.i}];
+            phasorChart.data.datasets[2].data = [{x:0, y:0}, {x: vc.r, y: vc.i}];
+            phasorChart.update();
+        }
+
+        window.onload = () => {
+            initPhasor();
+            updateSim();
+        };
+    </script>
+
+</body>
+</html>

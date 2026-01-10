@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Line-to-Line (LL) Fault Virtual Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&family=Chakra+Petch:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f8fafc; }
+        .tech-font { font-family: 'Chakra Petch', sans-serif; }
+        .control-panel { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .visual-panel { background: #1e293b; border-radius: 1rem; color: white; min-height: 350px; }
+        
+        .slide-container {
+            background-color: #1e293b;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            min-height: 720px;
+            padding: 40px;
+            position: relative;
+            width: 100%;
+            max-width: 1280px;
+            margin: auto;
+        }
+
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #e2e8f0; border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb { height: 18px; width: 18px; border-radius: 50%; background: #3b82f6; cursor: pointer; -webkit-appearance: none; margin-top: -6px; }
+
+        .fault-spark {
+            animation: spark-flash 0.5s infinite;
+        }
+        @keyframes spark-flash {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.5); filter: drop-shadow(0 0 15px orange); }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex justify-center">
+
+    <div class="slide-container">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-white tech-font">⚡ ห้องปฏิบัติการวิเคราะห์ Fault แบบ LL</h1>
+                <p class="text-slate-400">Virtual Simulation for Line-to-Line Fault (Phase B to C)</p>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 p-3 rounded-lg text-sm text-yellow-400">
+                <strong class="text-white">สถานะระบบ:</strong> <span id="sys-status">ปกติ</span>
+            </div>
+        </header>
+
+        <div class="grid lg:grid-cols-12 gap-8">
+            
+            <!-- Left: Controls (4 cols) -->
+            <div class="lg:col-span-4 space-y-6">
+                <div class="control-panel p-6 border border-slate-200">
+                    <h2 class="text-lg font-bold mb-6 flex items-center gap-2 text-slate-800">
+                        <span class="p-2 bg-slate-100 rounded-lg">🎛️</span> ปรับพารามิเตอร์ระบบ
+                    </h2>
+
+                    <!-- Fault Toggle -->
+                    <div class="mb-8">
+                        <label class="text-sm font-bold text-slate-700 mb-3 block">สถานะการลัดวงจร</label>
+                        <div class="flex gap-2">
+                            <button onclick="setFault(false)" id="btn-normal" class="flex-1 py-2 rounded-lg border-2 border-slate-200 font-bold transition">Normal</button>
+                            <button onclick="setFault(true)" id="btn-fault" class="flex-1 py-2 rounded-lg border-2 border-yellow-500 bg-yellow-50 text-yellow-700 font-bold transition">LL Fault</button>
+                        </div>
+                    </div>
+
+                    <!-- Sliders -->
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between text-xs mb-2">
+                                <span class="font-bold text-slate-600">Z1 (Positive Seq)</span>
+                                <span class="text-blue-600 font-mono" id="z1-val">0.15 pu</span>
+                            </div>
+                            <input type="range" id="z1-in" min="0.05" max="0.5" step="0.01" value="0.15" oninput="updateSim()">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-2">
+                                <span class="font-bold text-slate-600">Z2 (Negative Seq)</span>
+                                <span class="text-blue-600 font-mono" id="z2-val">0.15 pu</span>
+                            </div>
+                            <input type="range" id="z2-in" min="0.05" max="0.5" step="0.01" value="0.15" oninput="updateSim()">
+                        </div>
+
+                        <div class="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                            <div class="flex justify-between text-xs mb-2">
+                                <span class="font-bold text-gray-700">Fault Impedance (Zf)</span>
+                                <span class="text-gray-600 font-bold font-mono" id="zf-val">0.00 pu</span>
+                            </div>
+                            <input type="range" id="zf-in" min="0" max="0.5" step="0.01" value="0" oninput="updateSim()" class="accent-gray-500">
+                            <p class="text-[10px] text-gray-500 mt-2 italic">* Zf ช่วยลดกระแสลัดวงจรระหว่างเฟส</p>
+                        </div>
+                        
+                        <div class="opacity-50 pointer-events-none grayscale">
+                             <div class="flex justify-between text-xs mb-2">
+                                <span class="font-bold text-slate-400">Z0 (Zero Seq) - ไม่ใช้ใน LL</span>
+                                <span class="text-slate-400 font-mono">--</span>
+                            </div>
+                            <input type="range" value="0" disabled class="cursor-not-allowed">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-sm text-white">
+                    <h3 class="text-sm font-bold mb-4">ผังการต่อโครงข่ายลำดับ (LL Case)</h3>
+                    <div class="flex flex-col items-center gap-2">
+                        <!-- Positive Network -->
+                        <div class="flex items-center gap-2 w-full justify-center">
+                            <div class="w-20 h-10 bg-blue-900 border border-blue-500 rounded flex items-center justify-center text-[10px] font-bold text-blue-200">Positive (Z1)</div>
+                        </div>
+                        <!-- Parallel Connections -->
+                        <div class="flex w-1/2 h-4 border-l-2 border-r-2 border-slate-500 justify-between"></div>
+                        <!-- Negative Network -->
+                        <div class="flex items-center gap-2 w-full justify-center">
+                            <div class="w-20 h-10 bg-indigo-900 border border-indigo-500 rounded flex items-center justify-center text-[10px] font-bold text-indigo-200">Negative (Z2)</div>
+                        </div>
+                    </div>
+                    <p class="text-[10px] text-center text-slate-400 mt-4 italic">Parallel Connection (Z1 // Z2)<br>Zero Sequence is Isolated</p>
+                </div>
+            </div>
+
+            <!-- Right: Visuals (8 cols) -->
+            <div class="lg:col-span-8 space-y-6">
+                
+                <!-- Main Diagram & Phasor -->
+                <div class="grid md:grid-cols-2 gap-6">
+                    
+                    <!-- Schematic View -->
+                    <div class="visual-panel p-6 relative flex flex-col items-center justify-center overflow-hidden">
+                        <div class="absolute top-4 left-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Circuit Diagram (B-C Fault)</div>
+                        
+                        <!-- Generator Node -->
+                        <div class="w-12 h-12 rounded-full border-2 border-slate-400 flex items-center justify-center bg-slate-700 z-10 mb-4">
+                            <span class="text-xl font-bold">G</span>
+                        </div>
+                        
+                        <!-- Bus Lines -->
+                        <div class="w-full space-y-8 px-8 relative">
+                            <!-- Phase A -->
+                            <div class="h-1 w-full bg-red-500 relative opacity-30">
+                                <span class="absolute -top-5 left-0 text-[10px] text-red-400">Phase A (No Fault)</span>
+                            </div>
+                            
+                            <!-- Fault Spark Container -->
+                            <div id="spark-container" class="absolute top-1/2 left-2/3 transform -translate-y-1/2 -translate-x-1/2 w-8 h-20 z-20 hidden flex flex-col items-center justify-center">
+                                <div class="text-3xl fault-spark">⚡</div>
+                            </div>
+
+                            <!-- Phase B -->
+                            <div class="h-1 w-full bg-yellow-400 relative">
+                                <span class="absolute -top-5 left-0 text-[10px] text-yellow-300">Phase B</span>
+                                <!-- Short Circuit Path -->
+                                <div id="short-line" class="absolute right-1/4 top-0 w-1 h-24 bg-yellow-500 hidden z-10"></div>
+                            </div>
+                            
+                            <!-- Phase C -->
+                            <div class="h-1 w-full bg-blue-400 relative"><span class="absolute -top-5 left-0 text-[10px] text-blue-300">Phase C</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Phasor Chart -->
+                    <div class="visual-panel p-6 flex flex-col items-center justify-center relative">
+                        <div class="absolute top-4 left-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Voltage Phasor</div>
+                        <div class="w-full max-w-[280px] aspect-square flex items-center justify-center">
+                            <canvas id="phasorCanvas"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Dashboard -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm opacity-50">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold">Ia (Phase A)</span>
+                        <div class="text-xl font-bold tech-font text-slate-500">0.00 pu</div>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm border-l-4 border-l-yellow-500">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold">Ib (Fault B)</span>
+                        <div class="text-xl font-bold tech-font text-yellow-400" id="res-ib">0.00 pu</div>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm border-l-4 border-l-blue-500">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold">Ic (Fault C)</span>
+                        <div class="text-xl font-bold tech-font text-blue-400" id="res-ic">0.00 pu</div>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm">
+                        <span class="text-[10px] text-slate-400 uppercase font-bold">Vbc (Line V)</span>
+                        <div class="text-xl font-bold tech-font text-white" id="res-vbc">1.73 pu</div>
+                    </div>
+                </div>
+
+                <!-- Summary Info -->
+                <div class="bg-slate-900 text-slate-200 p-6 rounded-2xl border border-slate-800">
+                    <h3 class="font-bold mb-2 flex items-center gap-2 text-yellow-400">
+                        <i class="fa-solid fa-bolt"></i> บทวิเคราะห์ Line-to-Line Fault
+                    </h3>
+                    <p class="text-sm leading-relaxed" id="lab-analysis">
+                        กรุณากดปุ่ม <strong>LL Fault</strong> เพื่อเริ่มการจำลองการลัดวงจรระหว่างเฟส B และ C
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isFaultActive = false;
+        let phasorChart;
+
+        function setFault(status) {
+            isFaultActive = status;
+            const btnNormal = document.getElementById('btn-normal');
+            const btnFault = document.getElementById('btn-fault');
+            const spark = document.getElementById('spark-container');
+            const shortLine = document.getElementById('short-line');
+            const statusLabel = document.getElementById('sys-status');
+
+            if (isFaultActive) {
+                btnFault.className = "flex-1 py-2 rounded-lg border-2 border-yellow-500 bg-yellow-500 text-black font-bold transition";
+                btnNormal.className = "flex-1 py-2 rounded-lg border-2 border-slate-200 font-bold transition bg-white text-slate-800";
+                spark.classList.remove('hidden');
+                shortLine.classList.remove('hidden');
+                statusLabel.innerText = "⚠️ เกิดการลัดวงจร (LINE-TO-LINE)";
+                statusLabel.className = "text-yellow-400 font-bold";
+            } else {
+                btnNormal.className = "flex-1 py-2 rounded-lg border-2 border-blue-600 bg-blue-600 text-white font-bold transition";
+                btnFault.className = "flex-1 py-2 rounded-lg border-2 border-slate-200 font-bold transition bg-white text-slate-800";
+                spark.classList.add('hidden');
+                shortLine.classList.add('hidden');
+                statusLabel.innerText = "✅ ระบบปกติ";
+                statusLabel.className = "text-green-400 font-bold";
+            }
+            updateSim();
+        }
+
+        // Complex number helpers
+        function complexAdd(a, b) { return { r: a.r + b.r, i: a.i + b.i }; }
+        function complexSub(a, b) { return { r: a.r - b.r, i: a.i - b.i }; }
+        function complexMul(a, b) { return { r: a.r * b.r - a.i * b.i, i: a.r * b.i + a.i * b.r }; }
+        function complexMag(a) { return Math.sqrt(a.r * a.r + a.i * a.i); }
+        
+        const a = { r: -0.5, i: 0.866 }; // 1<120
+        const a2 = { r: -0.5, i: -0.866 }; // 1<240
+
+        function updateSim() {
+            const z1_mag = parseFloat(document.getElementById('z1-in').value);
+            const z2_mag = parseFloat(document.getElementById('z2-in').value);
+            const zf_mag = parseFloat(document.getElementById('zf-in').value);
+            const vf = 1.0;
+
+            document.getElementById('z1-val').innerText = z1_mag.toFixed(2) + " pu";
+            document.getElementById('z2-val').innerText = z2_mag.toFixed(2) + " pu";
+            document.getElementById('zf-val').innerText = zf_mag.toFixed(2) + " pu";
+
+            let res = { ib: 0, ic: 0, vbc: 1.732, va: {r:1, i:0}, vb: a2, vc: a, analysis: "" };
+
+            if (isFaultActive) {
+                // LL Fault Calculation (Assume Z are purely reactive jX for simplicity in magnitude, 
+                // but let's do simple magnitude calc for display)
+                
+                // Ia1 = Vf / (Z1 + Z2 + Zf)
+                // Assume purely reactive impedances so we can sum scalars for denominator magnitude
+                const ia1_mag = vf / (z1_mag + z2_mag + zf_mag);
+                
+                // Ib = (a^2 - a) * Ia1 = -j * sqrt(3) * Ia1
+                const fault_current_mag = Math.sqrt(3) * ia1_mag;
+                
+                res.ib = fault_current_mag;
+                res.ic = fault_current_mag;
+
+                // Voltages
+                // Va1 = Vf - Ia1*Z1
+                // Va2 = Vf - Va1 (since Va1=Va2 in parallel? No, V1=V2 at fault point)
+                // Actually V1 = Vf - I1Z1, V2 = -I2Z2. Since I2=-I1, V2 = I1Z2.
+                // At fault point V1_f = V2_f (if Zf=0)
+                
+                // Let's approximate Phase Voltages for visualization
+                // Va = Va1 + Va2 = (Vf - I1Z1) + (I1Z2) = Vf - I1(Z1-Z2)
+                // If Z1=Z2, Va = Vf = 1.0. 
+                
+                // Vb = Vc (if Zf=0). They meet halfway.
+                // Vb_mag approx 0.5 (if Z1=Z2=0.15)
+                
+                // Simplified Logic for Visualization:
+                // Vb and Vc collapse towards each other.
+                const collapseFactor = zf_mag / (z1_mag + z2_mag + zf_mag); // If Zf small, factor small
+                const midPoint = -0.5; // Real part of Vb and Vc
+                
+                // New Imaginary parts
+                // Normal Vb.i = -0.866. At fault Vb.i -> 0
+                const imagFactor = zf_mag * 2; // Rough visual scale
+                const current_imag = 0.866 * (collapseFactor + (1-collapseFactor)*0.1); // Collapses to near 0
+                
+                // Let's use rigorous relative calculation for Phasing
+                // Vb = a^2*V1 + a*V2
+                // Vc = a*V1 + a^2*V2
+                // V1 = 1 - (z1/(z1+z2+zf))
+                // V2 = (z2/(z1+z2+zf))
+                const factor1 = 1.0 - (z1_mag / (z1_mag + z2_mag + zf_mag));
+                const factor2 = (z2_mag / (z1_mag + z2_mag + zf_mag));
+                
+                const v1 = {r: factor1, i:0};
+                const v2 = {r: factor2, i:0}; // Simplified assuming pure reactance
+                
+                // Vb = a^2*V1 + a*V2
+                const term1 = complexMul(a2, v1);
+                const term2 = complexMul(a, v2);
+                res.vb = complexAdd(term1, term2);
+                
+                // Vc = a*V1 + a^2*V2
+                const term3 = complexMul(a, v1);
+                const term4 = complexMul(a2, v2);
+                res.vc = complexAdd(term3, term4);
+                
+                res.va = {r: 1, i:0}; // Unaffected if Z1=Z2 approx
+                
+                // Vbc magnitude
+                const vbc_c = complexSub(res.vb, res.vc);
+                res.vbc = complexMag(vbc_c);
+
+                res.analysis = `เกิดการลัดวงจรระหว่างเฟส B และ C! สังเกตว่ากระแส <strong>Ib</strong> และ <strong>Ic</strong> มีขนาดเท่ากันคือ <strong>${res.ib.toFixed(2)} pu</strong> แต่มีทิศทางไหลเข้าหากัน และแรงดันระหว่างเฟส (Vbc) ลดลงเหลือ <strong>${res.vbc.toFixed(2)} pu</strong> (เข้าใกล้ 0 ถ้า Zf=0)`;
+            } else {
+                res.analysis = "ระบบปกติ แรงดันสมดุล Vbc = 1.732 pu กระแสลัดวงจรเป็น 0";
+            }
+
+            document.getElementById('res-ib').innerText = res.ib.toFixed(2) + " pu";
+            document.getElementById('res-ic').innerText = res.ic.toFixed(2) + " pu";
+            document.getElementById('res-vbc').innerText = res.vbc.toFixed(2) + " pu";
+            document.getElementById('lab-analysis').innerHTML = res.analysis;
+
+            updatePhasor(res.va, res.vb, res.vc);
+        }
+
+        function initPhasor() {
+            const ctx = document.getElementById('phasorCanvas').getContext('2d');
+            phasorChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        { label: 'Va', data: [{x:0, y:0}], borderColor: '#ef4444', showLine: true, borderWidth: 3 },
+                        { label: 'Vb', data: [{x:0, y:0}], borderColor: '#facc15', showLine: true, borderWidth: 3 },
+                        { label: 'Vc', data: [{x:0, y:0}], borderColor: '#60a5fa', showLine: true, borderWidth: 3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        x: { min: -1.5, max: 1.5, grid: { color: '#334155' }, display: false },
+                        y: { min: -1.5, max: 1.5, grid: { color: '#334155' }, display: false }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function updatePhasor(va, vb, vc) {
+            phasorChart.data.datasets[0].data = [{x:0, y:0}, {x: va.r, y: va.i}];
+            phasorChart.data.datasets[1].data = [{x:0, y:0}, {x: vb.r, y: vb.i}];
+            phasorChart.data.datasets[2].data = [{x:0, y:0}, {x: vc.r, y: vc.i}];
+            phasorChart.update('none');
+        }
+
+        window.onload = () => {
+            initPhasor();
+            setFault(false);
+        };
+    </script>
+
+</body>
+</html>
