@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>โปรแกรมจำลองเสถียรภาพแบบชั่วครู่ (Transient Stability)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f3f4f6; }
+        .slider-container { margin-bottom: 1rem; }
+        .slider-label { display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem; }
+        canvas { background-color: white; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-6 text-center md:text-left">
+            <h1 class="text-3xl font-bold text-blue-800">การจำลองเสถียรภาพแบบชั่วครู่ (Transient Stability)</h1>
+            <p class="text-gray-600 mt-2">กรณีศึกษา: เครื่องกำเนิดไฟฟ้าเครื่องเดียวต่อกับระบบบัสอนันต์ (Single Machine Infinite Bus - SMIB)</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Control Panel -->
+            <div class="bg-white p-6 rounded-lg shadow-md md:col-span-1 border-t-4 border-blue-600">
+                <h2 class="text-xl font-bold mb-4 text-gray-800 border-b pb-2">พารามิเตอร์ระบบ</h2>
+                
+                <!-- Inputs -->
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>กำลังไฟฟ้าทางกล (Pm)</span>
+                        <span id="val_Pm">0.8 p.u.</span>
+                    </div>
+                    <input type="range" min="0.1" max="1.2" step="0.05" value="0.8" id="in_Pm" class="w-full accent-blue-600">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>เวลาขจัดฟอลต์ (Fault Clearing Time)</span>
+                        <span id="val_tclear">0.2 s</span>
+                    </div>
+                    <input type="range" min="0.05" max="1.0" step="0.01" value="0.2" id="in_tclear" class="w-full accent-red-600">
+                    <p class="text-xs text-gray-500 mt-1">*เวลานี้สำคัญต่อการตัดสินความเสถียร (CCT)</p>
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>ค่าคงที่ความเฉื่อย (H)</span>
+                        <span id="val_H">5.0 s</span>
+                    </div>
+                    <input type="range" min="1.0" max="10.0" step="0.5" value="5.0" id="in_H" class="w-full accent-green-600">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>สัมประสิทธิ์การหน่วง (Damping - D)</span>
+                        <span id="val_D">2.0</span>
+                    </div>
+                    <input type="range" min="0" max="10" step="0.5" value="2.0" id="in_D" class="w-full accent-purple-600">
+                </div>
+
+                <div class="slider-container border-t pt-4 mt-4">
+                    <div class="slider-label">
+                        <span>Pmax (ปกติ)</span>
+                        <span id="val_Pmax1">1.5 p.u.</span>
+                    </div>
+                    <input type="range" min="1.0" max="2.0" step="0.1" value="1.5" id="in_Pmax1" class="w-full">
+                </div>
+                
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Pmax (ขณะเกิดฟอลต์)</span>
+                        <span id="val_Pmax2">0.3 p.u.</span>
+                    </div>
+                    <input type="range" min="0.0" max="1.0" step="0.1" value="0.3" id="in_Pmax2" class="w-full">
+                </div>
+
+                <div class="mt-6 p-3 bg-blue-50 rounded text-center">
+                    <button id="btn_simulate" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded shadow transition duration-200">
+                        จำลองผลใหม่ (Run)
+                    </button>
+                    <button id="btn_reset" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded shadow transition duration-200 ml-2">
+                        รีเซ็ต
+                    </button>
+                </div>
+                
+                <div id="statusResult" class="mt-4 p-3 font-bold text-center rounded border">
+                    สถานะ: รอการประมวลผล
+                </div>
+            </div>
+
+            <!-- Visualization Panel -->
+            <div class="md:col-span-2 space-y-6">
+                <!-- Graph -->
+                <div class="bg-white p-4 rounded-lg shadow-md border-t-4 border-indigo-600">
+                    <h3 class="font-bold text-lg mb-2 text-gray-700">กราฟมุมโรเตอร์ (Rotor Angle Swing Curve)</h3>
+                    <div class="relative h-80 w-full">
+                        <canvas id="swingChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Theory/Info -->
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="font-bold text-lg mb-2 text-gray-800">คำอธิบายปรากฏการณ์</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+                        <div>
+                            <p><strong>ช่วงก่อนเกิดฟอลต์ (Pre-fault):</strong> ระบบสมดุล Pm = Pe</p>
+                            <p><strong>ช่วงเกิดฟอลต์ (Fault):</strong> เกิดไฟฟ้าลัดวงจร Pmax ลดลง กำลังไฟฟ้าที่ส่งออกไม่ได้เปลี่ยนเป็นพลังงานจลน์ ทำให้โรเตอร์เร่งความเร็ว มุมโรเตอร์เพิ่มขึ้น</p>
+                        </div>
+                        <div>
+                            <p><strong>ช่วงหลังขจัดฟอลต์ (Post-fault):</strong> เบรกเกอร์ตัดวงจร กำลังไฟฟ้ากลับมาส่งได้ หากพื้นที่รับพลังงานคืน (Decelerating Area) มากพอ ระบบจะกลับสู่เสถียรภาพ</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 text-xs text-gray-500 bg-gray-100 p-2 rounded">
+                        สมการที่ใช้: Swing Equation: (2H/ωs) * d²δ/dt² = Pm - Pmax*sin(δ) - D*dδ/dt
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const ctx = document.getElementById('swingChart').getContext('2d');
+        let chart;
+        
+        // System Base Frequency
+        const f = 50; 
+        const omega_s = 2 * Math.PI * f; // Synchronous speed (rad/s)
+
+        // Initial Parameters
+        let params = {
+            Pm: 0.8,
+            t_clear: 0.2,
+            H: 5.0,
+            D: 2.0,
+            Pmax1: 1.5, // Pre-fault
+            Pmax2: 0.3, // During Fault
+            Pmax3: 1.4  // Post-fault (usually slightly less than pre-fault due to line loss)
+        };
+
+        // UI Elements Refs
+        const inputs = {
+            Pm: document.getElementById('in_Pm'),
+            t_clear: document.getElementById('in_tclear'),
+            H: document.getElementById('in_H'),
+            D: document.getElementById('in_D'),
+            Pmax1: document.getElementById('in_Pmax1'),
+            Pmax2: document.getElementById('in_Pmax2'),
+        };
+        const displays = {
+            Pm: document.getElementById('val_Pm'),
+            t_clear: document.getElementById('val_tclear'),
+            H: document.getElementById('val_H'),
+            D: document.getElementById('val_D'),
+            Pmax1: document.getElementById('val_Pmax1'),
+            Pmax2: document.getElementById('val_Pmax2'),
+        };
+
+        // Helper: Format Number
+        const fmt = (n) => parseFloat(n).toFixed(2);
+
+        // Update UI Values
+        function updateDisplay() {
+            params.Pm = parseFloat(inputs.Pm.value);
+            params.t_clear = parseFloat(inputs.t_clear.value);
+            params.H = parseFloat(inputs.H.value);
+            params.D = parseFloat(inputs.D.value);
+            params.Pmax1 = parseFloat(inputs.Pmax1.value);
+            params.Pmax2 = parseFloat(inputs.Pmax2.value);
+            
+            // Assume Pmax3 (post-fault) is slightly less than Pmax1 (line removed)
+            params.Pmax3 = params.Pmax1 * 0.95; 
+
+            displays.Pm.textContent = fmt(params.Pm) + " p.u.";
+            displays.t_clear.textContent = fmt(params.t_clear) + " s";
+            displays.H.textContent = fmt(params.H) + " s";
+            displays.D.textContent = fmt(params.D);
+            displays.Pmax1.textContent = fmt(params.Pmax1) + " p.u.";
+            displays.Pmax2.textContent = fmt(params.Pmax2) + " p.u.";
+        }
+
+        // Initialize Events
+        Object.keys(inputs).forEach(key => {
+            inputs[key].addEventListener('input', () => {
+                updateDisplay();
+                runSimulation();
+            });
+        });
+
+        document.getElementById('btn_simulate').addEventListener('click', runSimulation);
+        document.getElementById('btn_reset').addEventListener('click', () => {
+            // Reset logic here if needed
+            inputs.Pm.value = 0.8;
+            inputs.t_clear.value = 0.2;
+            inputs.H.value = 5.0;
+            updateDisplay();
+            runSimulation();
+        });
+
+        // --- Core Simulation Logic (Euler Method for Swing Equation) ---
+        function runSimulation() {
+            const dt = 0.005; // Time step (s)
+            const t_max = 3.0; // Max simulation time
+            const steps = Math.ceil(t_max / dt);
+            
+            // Initial State (Steady State)
+            // Pm = Pmax1 * sin(delta0) => delta0 = asin(Pm/Pmax1)
+            let delta = Math.asin(Math.min(1, Math.max(-1, params.Pm / params.Pmax1))); // Radians
+            let omega_dev = 0; // Speed deviation (pu) = 0 at start
+            
+            // Arrays for Plotting
+            const timeData = [];
+            const angleData = [];
+            
+            // To detect stability
+            let isUnstable = false;
+            let maxAngle = -1000;
+
+            for (let i = 0; i <= steps; i++) {
+                const t = i * dt;
+                
+                // Determine System State (Pre, During, Post Fault)
+                let Pmax_current;
+                let region = ""; // 0: Pre, 1: Fault, 2: Post
+
+                if (t < 0.1) {
+                    // Start simulation at t=0.0, fault happens at t=0.1 for visual clarity
+                    Pmax_current = params.Pmax1;
+                    region = "Pre-Fault";
+                } else if (t >= 0.1 && t < (0.1 + params.t_clear)) {
+                    Pmax_current = params.Pmax2;
+                    region = "Fault";
+                } else {
+                    Pmax_current = params.Pmax3;
+                    region = "Post-Fault";
+                }
+
+                // Electrical Power Output
+                const Pe = Pmax_current * Math.sin(delta);
+
+                // Accelerating Power: Pa = Pm - Pe - D*omega_dev
+                // Note: Damping is proportional to speed deviation
+                const Pa = params.Pm - Pe - (params.D * omega_dev);
+
+                // Swing Equation: (2H/omega_s) * d(omega_dev)/dt = Pa (in pu)
+                // d(omega_dev)/dt = Pa * omega_s / (2H) 
+                // But omega_dev here is usually per unit. Let's keep physics simple.
+                // M = 2H / omega_s
+                // d2(delta)/dt2 = Pa / M
+                
+                const M = (2 * params.H) / omega_s;
+                const alpha = Pa / M; // Angular acceleration (rad/s^2)
+
+                // Euler Integration
+                omega_dev += alpha * dt; // rad/s
+                delta += omega_dev * dt; // rad
+
+                // Convert to degrees for plotting
+                const delta_deg = delta * (180 / Math.PI);
+
+                timeData.push(t.toFixed(3));
+                angleData.push(delta_deg);
+
+                if (delta_deg > 180) {
+                    isUnstable = true;
+                }
+                maxAngle = Math.max(maxAngle, delta_deg);
+
+                // Stop if unstable to prevent chart going to infinity
+                if (delta_deg > 360 || delta_deg < -180) {
+                    isUnstable = true;
+                    break;
+                }
+            }
+
+            // Update UI Status
+            const statusEl = document.getElementById('statusResult');
+            if (isUnstable) {
+                statusEl.textContent = "สถานะ: ไม่เสถียร (Unstable) - โรเตอร์หลุดจากการซิงโครไนซ์";
+                statusEl.className = "mt-4 p-3 font-bold text-center rounded border bg-red-100 text-red-700 border-red-400";
+            } else {
+                statusEl.textContent = "สถานะ: เสถียร (Stable) - ระบบกลับสู่สมดุลได้";
+                statusEl.className = "mt-4 p-3 font-bold text-center rounded border bg-green-100 text-green-700 border-green-400";
+            }
+
+            renderChart(timeData, angleData, params.t_clear);
+        }
+
+        // --- Chart.js Rendering ---
+        function renderChart(labels, data, tclear) {
+            if (chart) {
+                chart.destroy();
+            }
+
+            const faultStartIdx = labels.findIndex(t => parseFloat(t) >= 0.1);
+            const faultEndIdx = labels.findIndex(t => parseFloat(t) >= (0.1 + tclear));
+
+            // Annotation Logic (Using simple dataset coloring or background requires plugins, 
+            // keeping it simple with vertical lines logic visually if needed, but here just plotting curve)
+            
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'มุมโรเตอร์ (องศา)',
+                        data: data,
+                        borderColor: 'rgb(37, 99, 235)',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.4,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'เวลา (วินาที)' },
+                            ticks: { maxTicksLimit: 10 }
+                        },
+                        y: {
+                            title: { display: true, text: 'Rotor Angle (Degrees)' }
+                        }
+                    },
+                    plugins: {
+                        annotation: {
+                            // Simple workaround for visualizing fault duration without external plugin complexity
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        }
+
+        // Initial Run
+        updateDisplay();
+        runSimulation();
+
+    </script>
+</body>
+</html>

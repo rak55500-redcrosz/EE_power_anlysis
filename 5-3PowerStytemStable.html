@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Power System Stability Simulation (SMIB)</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for graphing -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        body { font-family: 'Sarabun', sans-serif; }
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #2563eb;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+
+    <!-- Navbar -->
+    <div class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center gap-3">
+            <i class="ph ph-wave-sine text-3xl text-blue-600"></i>
+            <div>
+                <h1 class="text-xl font-bold text-slate-800">การจำลองเสถียรภาพระบบไฟฟ้า (Transient Stability)</h1>
+                <p class="text-xs text-slate-500">วิชาการควบคุมและเสถียรภาพ (ระดับ ป.ตรี/อาชีวศึกษา) - หัวข้อ 5.3</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Controls Section -->
+        <div class="lg:col-span-1 space-y-6">
+            
+            <!-- Parameters Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <div class="flex items-center gap-2 mb-4 border-b pb-2">
+                    <i class="ph ph-sliders text-xl text-yellow-600"></i>
+                    <h2 class="font-bold text-lg">กำหนดค่าพารามิเตอร์</h2>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Fault Clearing Time -->
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                        <div class="flex justify-between mb-2">
+                            <label class="font-semibold text-blue-900 text-sm">เวลาเคลียร์ฟอลต์ (t_clear)</label>
+                            <span id="val-tclear" class="font-mono text-blue-700 font-bold">0.70 s</span>
+                        </div>
+                        <input type="range" id="input-tclear" min="0.51" max="1.50" step="0.01" value="0.70" 
+                            class="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer">
+                        <p class="text-xs text-blue-600 mt-2">
+                            *ลองปรับเพิ่มขึ้นเรื่อยๆ เพื่อหาจุดวิกฤต (Critical Clearing Time)
+                        </p>
+                    </div>
+
+                    <!-- Mechanical Power (Pm) -->
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <label class="font-medium text-sm">กำลังไฟฟ้าทางกล (Pm)</label>
+                            <span id="val-pm" class="font-mono text-slate-600">0.8 p.u.</span>
+                        </div>
+                        <input type="range" id="input-pm" min="0.1" max="1.5" step="0.1" value="0.8" 
+                            class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-green-600">
+                    </div>
+
+                    <!-- Inertia (H) -->
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <label class="font-medium text-sm">ค่าความเฉื่อย (H)</label>
+                            <span id="val-h" class="font-mono text-slate-600">5.0 s</span>
+                        </div>
+                        <input type="range" id="input-h" min="1.0" max="10.0" step="0.5" value="5.0" 
+                            class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-purple-600">
+                    </div>
+
+                    <!-- Damping (D) -->
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <label class="font-medium text-sm">ค่าความหน่วง (Damping D)</label>
+                            <span id="val-d" class="font-mono text-slate-600">0.5</span>
+                        </div>
+                        <input type="range" id="input-d" min="0.0" max="5.0" step="0.1" value="0.5" 
+                            class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-orange-600">
+                    </div>
+
+                    <button onclick="resetParams()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex items-center justify-center gap-2 transition">
+                        <i class="ph ph-arrow-counter-clockwise"></i> รีเซ็ตค่าเริ่มต้น
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status Card -->
+            <div id="status-card" class="rounded-xl shadow-sm border p-6 bg-green-50 border-green-200 transition-colors duration-300">
+                <h2 class="font-bold text-lg mb-2 flex items-center gap-2">
+                    สถานะระบบ: <span id="status-text" class="text-green-700">เสถียรภาพปกติ (Stable)</span>
+                </h2>
+                <p id="status-desc" class="text-sm text-slate-600">
+                    มุมโรเตอร์มีการแกว่งและสามารถลู่เข้าสู่จุดทำงานใหม่ได้ ระบบยังคงรักษาการซิงโครไนซ์
+                </p>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Rotor Angle Chart -->
+            <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-lg text-slate-800">กราฟมุมโรเตอร์ (Rotor Angle, δ)</h3>
+                    <span class="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded">Swing Curve</span>
+                </div>
+                <div class="relative h-[350px] w-full">
+                    <canvas id="rotorChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Speed/Freq Chart -->
+            <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200">
+                <h3 class="font-bold text-lg text-slate-800 mb-4">กราฟความถี่ (Frequency Deviation)</h3>
+                <div class="relative h-[250px] w-full">
+                    <canvas id="freqChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Section -->
+    <script>
+        // --- Constants ---
+        const FREQ = 50; // Hz
+        const T_FAULT_START = 0.5;
+        const P_MAX_PRE = 1.5;
+        const P_MAX_FAULT = 0.4;
+        const P_MAX_POST = 1.2;
+        const T_MAX = 3.0;
+        const DT = 0.005;
+
+        // --- State ---
+        let params = {
+            Pm: 0.8,
+            H: 5.0,
+            D: 0.5,
+            tFaultClear: 0.7
+        };
+
+        let rotorChart, freqChart;
+
+        // --- Logic: Run Simulation (Swing Equation) ---
+        function runSimulation() {
+            const steps = Math.ceil(T_MAX / DT);
+            
+            // Initial Conditions
+            // Pe = Pmax * sin(delta) = Pm
+            let delta = Math.asin(Math.min(1, params.Pm / P_MAX_PRE));
+            let omega = 1.0; // p.u.
+            
+            let timeData = [];
+            let deltaData = [];
+            let freqData = [];
+            
+            let isStable = true;
+            let maxDelta = -999;
+
+            for (let i = 0; i <= steps; i++) {
+                const t = i * DT;
+                
+                // Determine Pmax state
+                let PmaxCurrent = P_MAX_PRE;
+                if (t >= T_FAULT_START && t < params.tFaultClear) {
+                    PmaxCurrent = P_MAX_FAULT;
+                } else if (t >= params.tFaultClear) {
+                    PmaxCurrent = P_MAX_POST;
+                }
+
+                // Electrical Power
+                const Pe = PmaxCurrent * Math.sin(delta);
+
+                // Swing Equation (Euler)
+                // d(omega)/dt = (Pm - Pe - D(w-1)) / (2H)
+                const dOmega = (params.Pm - Pe - params.D * (omega - 1.0)) / (2 * params.H);
+                // d(delta)/dt = (w-1) * 2 * PI * f
+                const dDelta = (omega - 1.0) * 2 * Math.PI * FREQ;
+
+                // Update
+                omega += dOmega * DT;
+                delta += dDelta * DT;
+
+                const deltaDeg = delta * (180 / Math.PI);
+                const freqHz = omega * FREQ;
+
+                // Check stability (simple check)
+                if (deltaDeg > 180 || deltaDeg < -180) isStable = false;
+
+                // Record Data
+                // Downsample for chart performance (every 5th point)
+                if (i % 5 === 0) {
+                    timeData.push(t.toFixed(3));
+                    deltaData.push(deltaDeg);
+                    freqData.push(freqHz);
+                }
+            }
+
+            updateCharts(timeData, deltaData, freqData, isStable);
+            updateStatus(isStable);
+        }
+
+        // --- UI Updates ---
+        function updateStatus(isStable) {
+            const card = document.getElementById('status-card');
+            const text = document.getElementById('status-text');
+            const desc = document.getElementById('status-desc');
+
+            if (isStable) {
+                card.className = "rounded-xl shadow-sm border p-6 bg-green-50 border-green-200 transition-colors";
+                text.className = "text-green-700 font-bold";
+                text.innerText = "เสถียรภาพปกติ (Stable)";
+                desc.innerText = "โรเตอร์มีการแกว่งและลู่เข้าสู่จุดทำงานใหม่ได้ ระบบยังคงรักษาการซิงโครไนซ์";
+            } else {
+                card.className = "rounded-xl shadow-sm border p-6 bg-red-50 border-red-200 transition-colors";
+                text.className = "text-red-700 font-bold";
+                text.innerText = "หลุดเสถียรภาพ (Unstable)";
+                desc.innerText = "มุมโรเตอร์เพิ่มขึ้นเรื่อยๆ จนหลุดการซิงโครไนซ์ (Pole Slip) หรือกราฟพุ่งขึ้นไม่หยุด";
+            }
+        }
+
+        function updateCharts(labels, deltaData, freqData, isStable) {
+            const chartColor = isStable ? '#2563eb' : '#dc2626'; // Blue or Red
+
+            // Update Rotor Chart
+            rotorChart.data.labels = labels;
+            rotorChart.data.datasets[0].data = deltaData;
+            rotorChart.data.datasets[0].borderColor = chartColor;
+            
+            // Add vertical lines annotation logic (using plugins is complex in simple js, simple check)
+            // Ideally we redraw annotations here. For simplicity in ChartJS CDN, we stick to data updates.
+            
+            rotorChart.update('none'); // 'none' for performance
+
+            // Update Freq Chart
+            freqChart.data.labels = labels;
+            freqChart.data.datasets[0].data = freqData;
+            freqChart.update('none');
+        }
+
+        // --- Initialization ---
+        function initCharts() {
+            // Rotor Angle Chart
+            const ctxRotor = document.getElementById('rotorChart').getContext('2d');
+            
+            // Annotation Plugin for Fault Lines (Custom simple implementation)
+            const verticalLinePlugin = {
+                id: 'verticalLinePlugin',
+                beforeDraw: (chart) => {
+                    const ctx = chart.ctx;
+                    const xAxis = chart.scales.x;
+                    const yAxis = chart.scales.y;
+
+                    // Helper to draw line
+                    const drawLine = (timeVal, color, labelText) => {
+                         // Find closest index
+                        const index = chart.data.labels.findIndex(t => parseFloat(t) >= timeVal);
+                        if (index === -1) return;
+                        
+                        const x = xAxis.getPixelForTick(index);
+                        
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.moveTo(x, yAxis.top);
+                        ctx.lineTo(x, yAxis.bottom);
+                        ctx.lineWidth = 1;
+                        ctx.strokeStyle = color;
+                        ctx.setLineDash([5, 5]);
+                        ctx.stroke();
+                        
+                        // Label
+                        ctx.fillStyle = color;
+                        ctx.font = '12px sans-serif';
+                        ctx.fillText(labelText, x + 5, yAxis.top + 10);
+                        ctx.restore();
+                    };
+
+                    drawLine(T_FAULT_START, '#ef4444', 'Fault Start');
+                    drawLine(params.tFaultClear, '#22c55e', 'Clear');
+                }
+            };
+
+            rotorChart = new Chart(ctxRotor, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Rotor Angle (deg)',
+                        data: [],
+                        borderColor: '#2563eb',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Time (s)' }, ticks: { maxTicksLimit: 10 } },
+                        y: { title: { display: true, text: 'Degrees' } }
+                    }
+                },
+                plugins: [verticalLinePlugin]
+            });
+
+            // Frequency Chart
+            const ctxFreq = document.getElementById('freqChart').getContext('2d');
+            freqChart = new Chart(ctxFreq, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Frequency (Hz)',
+                        data: [],
+                        borderColor: '#8b5cf6',
+                        borderWidth: 2,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { title: { display: true, text: 'Time (s)' }, ticks: { maxTicksLimit: 10 } },
+                        y: { title: { display: true, text: 'Hz' } }
+                    }
+                }
+            });
+        }
+
+        // --- Event Listeners ---
+        function setupListeners() {
+            const inputs = [
+                { id: 'input-tclear', key: 'tFaultClear', display: 'val-tclear', unit: ' s' },
+                { id: 'input-pm', key: 'Pm', display: 'val-pm', unit: ' p.u.' },
+                { id: 'input-h', key: 'H', display: 'val-h', unit: ' s' },
+                { id: 'input-d', key: 'D', display: 'val-d', unit: '' }
+            ];
+
+            inputs.forEach(item => {
+                const el = document.getElementById(item.id);
+                el.addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    params[item.key] = val;
+                    document.getElementById(item.display).innerText = val.toFixed(2) + item.unit;
+                    runSimulation();
+                });
+            });
+        }
+
+        function resetParams() {
+            params = { Pm: 0.8, H: 5.0, D: 0.5, tFaultClear: 0.7 };
+            
+            document.getElementById('input-tclear').value = 0.7;
+            document.getElementById('val-tclear').innerText = "0.70 s";
+
+            document.getElementById('input-pm').value = 0.8;
+            document.getElementById('val-pm').innerText = "0.80 p.u.";
+
+            document.getElementById('input-h').value = 5.0;
+            document.getElementById('val-h').innerText = "5.00 s";
+
+            document.getElementById('input-d').value = 0.5;
+            document.getElementById('val-d').innerText = "0.50";
+
+            runSimulation();
+        }
+
+        // Start
+        window.onload = function() {
+            initCharts();
+            setupListeners();
+            runSimulation();
+        };
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Power Flow Control Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f0f4f8; }
+        canvas { background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .slider-container { margin-bottom: 15px; }
+        .control-panel { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .metric-box { text-align: center; padding: 10px; border-radius: 8px; font-weight: bold; }
+        .metric-p { background-color: #e6fffa; color: #047857; border: 1px solid #047857; }
+        .metric-q { background-color: #fff5f5; color: #c53030; border: 1px solid #c53030; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="mb-6 text-center">
+            <h1 class="text-3xl font-bold text-gray-800">โปรแกรมจำลอง: การควบคุมการไหลของกำลังไฟฟ้า</h1>
+            <p class="text-gray-600 mt-2">สื่อการสอนสำหรับวิชาระบบไฟฟ้ากำลัง (Power System Analysis)</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Controls Section -->
+            <div class="control-panel lg:col-span-1 h-fit">
+                <h2 class="text-xl font-bold mb-4 text-blue-800 border-b pb-2">แผงควบคุม (Generator Bus 1)</h2>
+                
+                <!-- P Control -->
+                <div class="slider-container bg-green-50 p-4 rounded-lg border border-green-200">
+                    <label class="block font-semibold text-green-800 mb-2">
+                        1. ควบคุม P (Active Power)
+                        <span class="text-sm font-normal text-gray-600 block">โดยการปรับ "มุมเฟส" </span>
+                    </label>
+                    <input type="range" id="deltaSlider" min="-45" max="45" value="0" step="1" class="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer">
+                    <div class="flex justify-between text-sm mt-1">
+                        <span>Lagg (-45°)</span>
+                        <span id="deltaValue" class="font-bold text-green-700">0°</span>
+                        <span>Lead (+45°)</span>
+                    </div>
+                </div>
+
+                <!-- Q Control -->
+                <div class="slider-container bg-red-50 p-4 rounded-lg border border-red-200 mt-4">
+                    <label class="block font-semibold text-red-800 mb-2">
+                        2. ควบคุม Q (Reactive Power)
+                        <span class="text-sm font-normal text-gray-600 block">โดยการปรับ "ขนาดแรงดัน" </span>
+                    </label>
+                    <input type="range" id="voltSlider" min="0.8" max="1.2" value="1.0" step="0.01" class="w-full h-2 bg-red-200 rounded-lg appearance-none cursor-pointer">
+                    <div class="flex justify-between text-sm mt-1">
+                        <span>0.8 p.u.</span>
+                        <span id="voltValue" class="font-bold text-red-700">1.00 p.u.</span>
+                        <span>1.2 p.u.</span>
+                    </div>
+                </div>
+
+                <!-- Presets -->
+                <div class="mt-6">
+                    <h3 class="font-bold text-gray-700 mb-2">สถานการณ์ตัวอย่าง (Presets)</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="window.setScenario(0)" class="bg-gray-200 hover:bg-gray-300 py-2 rounded text-sm transition">Normal (No Flow)</button>
+                        <button onclick="window.setScenario(1)" class="bg-blue-100 hover:bg-blue-200 text-blue-800 py-2 rounded text-sm transition">ส่ง P สูงสุด</button>
+                        <button onclick="window.setScenario(2)" class="bg-orange-100 hover:bg-orange-200 text-orange-800 py-2 rounded text-sm transition">ส่ง Q สูงสุด</button>
+                        <button onclick="window.setScenario(3)" class="bg-purple-100 hover:bg-purple-200 text-purple-800 py-2 rounded text-sm transition">รับไฟเข้า (Motor Mode)</button>
+                    </div>
+                </div>
+
+                <div class="mt-6 text-sm text-gray-500 bg-gray-100 p-3 rounded">
+                    <strong>Note:</strong> Bus 2 (Infinite Bus) คงที่ที่:<br>
+                    V_2 = 1.0<0 p.u.<br>
+                    X_line = 0.5 p.u. (Lossless)
+                </div>
+            </div>
+
+            <!-- Visual Section -->
+            <div class="lg:col-span-2 flex flex-col gap-4">
+                
+                <!-- Metrics Display -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="metric-box metric-p">
+                        <div class="text-sm">กำลังไฟฟ้าจริง (P)</div>
+                        <div id="pDisplay" class="text-3xl">0.00 p.u.</div>
+                        <div id="pDirection" class="text-xs mt-1">-</div>
+                    </div>
+                    <div class="metric-box metric-q">
+                        <div class="text-sm">กำลังไฟฟ้ารีแอคทีฟ (Q)</div>
+                        <div id="qDisplay" class="text-3xl">0.00 p.u.</div>
+                        <div id="qDirection" class="text-xs mt-1">-</div>
+                    </div>
+                </div>
+
+                <!-- Main Canvas -->
+                <div class="relative w-full h-80 md:h-96">
+                    <canvas id="simCanvas" class="w-full h-full"></canvas>
+                    <div class="absolute top-2 left-2 bg-white/80 px-2 py-1 rounded text-xs text-gray-500">System Diagram</div>
+                </div>
+
+                <!-- Phasor Diagram -->
+                <div class="relative w-full h-64 bg-white rounded-lg shadow p-4 flex justify-center items-center">
+                    <div class="absolute top-2 left-2 text-xs text-gray-500 font-bold">Phasor Diagram</div>
+                    <canvas id="phasorCanvas" width="300" height="200"></canvas>
+                    
+                    <div class="absolute right-4 top-4 text-xs space-y-1">
+                        <div class="flex items-center"><span class="w-3 h-3 bg-blue-600 rounded-full mr-2"></span> V1 (Gen)</div>
+                        <div class="flex items-center"><span class="w-3 h-3 bg-gray-400 rounded-full mr-2"></span> V2 (Grid)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+(function() {
+    // Wrap code in IIFE to prevent variable redeclaration errors on re-run
+
+    // System Parameters
+    const X_line = 0.5; // Line Reactance
+    const V2 = 1.0;     // Infinite Bus Voltage
+    const delta2 = 0;   // Infinite Bus Angle
+
+    // State Variables
+    let V1 = 1.0;
+    let delta1 = 0; // Degrees
+    let P = 0;
+    let Q = 0;
+    let animationId;
+
+    // Canvas Setup
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const pCanvas = document.getElementById('phasorCanvas');
+    const pCtx = pCanvas.getContext('2d');
+
+    // Initialization
+    function init() {
+        // Clean up previous event listeners if necessary (though simple reload handles it)
+        // But for safety within SPA environments:
+        const dSlider = document.getElementById('deltaSlider');
+        const vSlider = document.getElementById('voltSlider');
+        
+        // Remove old listeners by cloning (simple trick) or just add new ones if we trust the environment clears DOM
+        // We will assume DOM is refreshed or simple addEventListener is fine.
+        
+        dSlider.oninput = updateState;
+        vSlider.oninput = updateState;
+        
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        updateState();
+        if (animationId) cancelAnimationFrame(animationId);
+        animate();
+    }
+
+    function resizeCanvas() {
+        if(canvas && canvas.parentElement) {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+    }
+
+    function updateState() {
+        const dSlider = document.getElementById('deltaSlider');
+        const vSlider = document.getElementById('voltSlider');
+        
+        if(!dSlider || !vSlider) return;
+
+        // Read Inputs
+        delta1 = parseFloat(dSlider.value);
+        V1 = parseFloat(vSlider.value);
+
+        // Update UI Text
+        const dVal = document.getElementById('deltaValue');
+        const vVal = document.getElementById('voltValue');
+        if(dVal) dVal.innerText = delta1 + "°";
+        if(vVal) vVal.innerText = V1.toFixed(2) + " p.u.";
+
+        // Calculate Physics (Lossless Line Model)
+        // P = (V1*V2/X) * sin(delta)
+        // Q = (V1^2 - V1*V2*cos(delta)) / X
+        
+        const deltaRad = (delta1 - delta2) * Math.PI / 180;
+        P = (V1 * V2 / X_line) * Math.sin(deltaRad);
+        Q = ( Math.pow(V1, 2) - (V1 * V2 * Math.cos(deltaRad)) ) / X_line;
+
+        // Update Displays
+        const pDisp = document.getElementById('pDisplay');
+        const qDisp = document.getElementById('qDisplay');
+        if(pDisp) pDisp.innerText = Math.abs(P).toFixed(2) + " p.u.";
+        if(qDisp) qDisp.innerText = Math.abs(Q).toFixed(2) + " p.u.";
+
+        const pDirText = P > 0.01 ? "Gen ➔ Grid (จ่ายไฟ)" : P < -0.01 ? "Grid ➔ Gen (รับไฟ/มอเตอร์)" : "สมดุล";
+        const qDirText = Q > 0.01 ? "Gen ➔ Grid (จ่าย Q/Over-excited)" : Q < -0.01 ? "Grid ➔ Gen (รับ Q/Under-excited)" : "สมดุล";
+
+        const pDir = document.getElementById('pDirection');
+        const qDir = document.getElementById('qDirection');
+
+        if(pDir) {
+            pDir.innerText = pDirText;
+            pDir.className = "text-xs mt-1 " + (P > 0 ? "text-green-600" : "text-orange-600");
+        }
+        
+        if(qDir) {
+            qDir.innerText = qDirText;
+            qDir.className = "text-xs mt-1 " + (Q > 0 ? "text-red-600" : "text-blue-600");
+        }
+
+        drawPhasor();
+    }
+
+    // Expose setScenario to window so onclick works
+    window.setScenario = function(type) {
+        const dSlider = document.getElementById('deltaSlider');
+        const vSlider = document.getElementById('voltSlider');
+        
+        if(!dSlider || !vSlider) return;
+
+        if(type === 0) { // Normal
+            dSlider.value = 0;
+            vSlider.value = 1.0;
+        } else if (type === 1) { // Max P
+            dSlider.value = 30; // Practical stability limit usually around 30-45 deg
+            vSlider.value = 1.0;
+        } else if (type === 2) { // Max Q
+            dSlider.value = 0;
+            vSlider.value = 1.2;
+        } else if (type === 3) { // Motor
+            dSlider.value = -30;
+            vSlider.value = 1.0;
+        }
+        updateState();
+    }
+
+    function drawSystem() {
+        if(!ctx) return;
+        const w = canvas.width;
+        const h = canvas.height;
+        const midY = h / 2;
+        const bus1X = w * 0.2;
+        const bus2X = w * 0.8;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Draw Line
+        ctx.beginPath();
+        ctx.moveTo(bus1X, midY);
+        ctx.lineTo(bus2X, midY);
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        // Draw P Flow (Green Arrows)
+        if (Math.abs(P) > 0.05) {
+            drawFlowArrow(ctx, bus1X, bus2X, midY - 20, P, '#059669', 'P (Active)');
+        }
+
+        // Draw Q Flow (Red Arrows)
+        if (Math.abs(Q) > 0.05) {
+            drawFlowArrow(ctx, bus1X, bus2X, midY + 20, Q, '#dc2626', 'Q (Reactive)');
+        }
+
+        // Draw Bus 1 (Generator)
+        drawBus(ctx, bus1X, midY, 'Gen (V1)', '#3b82f6', V1, delta1);
+
+        // Draw Bus 2 (Infinite Bus)
+        drawBus(ctx, bus2X, midY, 'Grid (V2)', '#64748b', V2, 0);
+    }
+
+    function drawBus(c, x, y, label, color, v, angle) {
+        c.beginPath();
+        c.arc(x, y, 30, 0, 2 * Math.PI);
+        c.fillStyle = 'white';
+        c.fill();
+        c.lineWidth = 3;
+        c.strokeStyle = color;
+        c.stroke();
+
+        // Icon inside
+        c.fillStyle = color;
+        c.font = "bold 14px Arial";
+        c.textAlign = "center";
+        c.fillText("~", x, y + 5);
+
+        // Label Text
+        c.fillStyle = '#1e293b';
+        c.font = "bold 14px Sarabun";
+        c.fillText(label, x, y - 45);
+        c.font = "12px monospace";
+        c.fillStyle = '#475569';
+        c.fillText(`${v.toFixed(2)}∠${angle}°`, x, y + 50);
+    }
+
+    function drawFlowArrow(c, x1, x2, y, val, color, label) {
+        const center = (x1 + x2) / 2;
+        const dir = val > 0 ? 1 : -1;
+        // Shaft
+        c.beginPath();
+        
+        c.save();
+        c.translate(center, y);
+        if (dir < 0) c.rotate(Math.PI);
+        
+        // Arrow Text
+        c.fillStyle = color;
+        c.font = "bold 12px Sarabun";
+        c.textAlign = "center";
+        if(dir > 0) c.fillText(label, 0, -10);
+        else c.fillText(label, 0, 20); 
+
+        // Draw big arrow
+        c.beginPath();
+        c.moveTo(-20, -5);
+        c.lineTo(10, -5);
+        c.lineTo(10, -10);
+        c.lineTo(25, 0);
+        c.lineTo(10, 10);
+        c.lineTo(10, 5);
+        c.lineTo(-20, 5);
+        c.closePath();
+        c.fill();
+
+        c.restore();
+    }
+
+    function drawPhasor() {
+        if(!pCtx) return;
+        const w = pCanvas.width;
+        const h = pCanvas.height;
+        const cx = w / 2;
+        const cy = h / 2;
+        const scale = 80;
+
+        pCtx.clearRect(0, 0, w, h);
+
+        // Grid lines
+        pCtx.strokeStyle = '#e2e8f0';
+        pCtx.lineWidth = 1;
+        pCtx.beginPath();
+        pCtx.moveTo(cx, 0); pCtx.lineTo(cx, h);
+        pCtx.moveTo(0, cy); pCtx.lineTo(w, cy);
+        pCtx.stroke();
+
+        // Reference Circle
+        pCtx.beginPath();
+        pCtx.arc(cx, cy, scale, 0, 2 * Math.PI);
+        pCtx.strokeStyle = '#e2e8f0';
+        pCtx.setLineDash([5, 5]);
+        pCtx.stroke();
+        pCtx.setLineDash([]);
+
+        // Draw V2 (Reference) - Gray
+        drawVector(pCtx, cx, cy, scale * V2, 0, '#94a3b8', 'V2');
+
+        // Draw V1 (Generator) - Blue
+        drawVector(pCtx, cx, cy, scale * V1, delta1, '#2563eb', 'V1');
+    }
+
+    function drawVector(c, cx, cy, r, angleDeg, color, label) {
+        const rad = angleDeg * Math.PI / 180;
+        const x = cx + r * Math.cos(rad);
+        const y = cy - r * Math.sin(rad);
+
+        c.beginPath();
+        c.moveTo(cx, cy);
+        c.lineTo(x, y);
+        c.strokeStyle = color;
+        c.lineWidth = 3;
+        c.stroke();
+
+        // Arrowhead
+        const headLen = 10;
+        const angle = Math.atan2(cy - y, x - cx);
+        c.beginPath();
+        c.moveTo(x, y);
+        c.lineTo(x - headLen * Math.cos(angle - Math.PI / 6), y + headLen * Math.sin(angle - Math.PI / 6));
+        c.lineTo(x - headLen * Math.cos(angle + Math.PI / 6), y + headLen * Math.sin(angle + Math.PI / 6));
+        c.fillStyle = color;
+        c.fill();
+
+        // Label
+        c.fillStyle = color;
+        c.font = "bold 12px Arial";
+        c.fillText(label, x + 10, y);
+    }
+
+    function animate() {
+        drawSystem();
+        animationId = requestAnimationFrame(animate);
+    }
+
+    // Start everything
+    init();
+
+})();
+</script>
+</body>
+</html>
