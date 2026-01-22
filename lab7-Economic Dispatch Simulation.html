@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Economic Dispatch Simulator</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Prop Types (Required by Recharts UMD) -->
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    
+    <!-- Recharts (Chart Library) -->
+    <script src="https://unpkg.com/recharts@2.10.3/umd/Recharts.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        body { font-family: 'Sarabun', sans-serif; }
+        /* Fix for range slider in Tailwind */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #2563eb;
+            cursor: pointer;
+            margin-top: -6px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: #e2e8f0;
+            border-radius: 2px;
+        }
+    </style>
+    <!-- Google Font for Thai -->
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Destructure React and Recharts from global window objects
+        const { useState, useEffect, useMemo } = React;
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell } = Recharts;
+
+        // --- Inline Icons (Replacements for lucide-react) ---
+        const ZapIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8 text-yellow-500"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        );
+        const ActivityIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-green-600"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        );
+        const SettingsIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-blue-600"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        );
+        const InfoIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3 inline mr-1"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        );
+        const RefreshCwIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>
+        );
+
+        const EconomicDispatchApp = () => {
+            // --- Initial State ---
+            const initialGenerators = [
+                { id: 1, name: 'Gen 1 (ถ่านหิน)', pMin: 50, pMax: 500, a: 500, b: 8.5, c: 0.005, output: 0, cost: 0 },
+                { id: 2, name: 'Gen 2 (ก๊าซฯ)', pMin: 30, pMax: 400, a: 300, b: 9.0, c: 0.008, output: 0, cost: 0 },
+                { id: 3, name: 'Gen 3 (น้ำมัน)', pMin: 20, pMax: 200, a: 100, b: 10.5, c: 0.012, output: 0, cost: 0 },
+            ];
+
+            const [generators, setGenerators] = useState(initialGenerators);
+            const [totalLoad, setTotalLoad] = useState(450);
+            const [useLosses, setUseLosses] = useState(false);
+            
+            // Simplified B-Coefficients
+            const [bCoeffs, setBCoeffs] = useState({
+                1: 0.00015, // Located far from load
+                2: 0.00005, // Located closer
+                3: 0.00002, // Located very close
+            });
+
+            const [result, setResult] = useState({
+                lambda: 0,
+                totalGen: 0,
+                totalCost: 0,
+                systemLoss: 0,
+                iterations: 0
+            });
+
+            // --- Calculation Logic (Lambda Iteration Method) ---
+            const solveEconomicDispatch = () => {
+                let lambda = 8.0; 
+                const tolerance = 0.01; 
+                const maxIter = 100;
+                
+                let currentGens = [...generators];
+                let iter = 0;
+                let P_total = 0;
+                let P_loss = 0;
+
+                for (iter = 0; iter < maxIter; iter++) {
+                    P_total = 0;
+                    P_loss = 0;
+
+                    // Calculate Pi for each generator based on Lambda
+                    currentGens = currentGens.map(gen => {
+                        let Pi = 0;
+                        
+                        if (useLosses) {
+                            const Bii = bCoeffs[gen.id] || 0;
+                            // Simplified: Pi = (lambda - b) / (2c + 2*lambda*Bii)
+                            Pi = (lambda - gen.b) / (2 * gen.c + 2 * lambda * Bii);
+                        } else {
+                            // No Losses: Pi = (lambda - b) / 2c
+                            Pi = (lambda - gen.b) / (2 * gen.c);
+                        }
+
+                        // Clamp limits
+                        if (Pi < gen.pMin) Pi = gen.pMin;
+                        if (Pi > gen.pMax) Pi = gen.pMax;
+
+                        P_total += Pi;
+                        
+                        // Calculate Loss Contribution (Simplified)
+                        if (useLosses) {
+                            P_loss += (bCoeffs[gen.id] || 0) * Pi * Pi;
+                        }
+
+                        return { ...gen, output: Pi };
+                    });
+
+                    const requiredGen = totalLoad + P_loss;
+                    const diff = requiredGen - P_total;
+
+                    if (Math.abs(diff) < tolerance) break;
+
+                    // Update Lambda (Damping factor)
+                    lambda += diff * 0.001; 
+                }
+
+                // Calculate Costs
+                let sumCost = 0;
+                currentGens = currentGens.map(gen => {
+                    const cost = gen.a + gen.b * gen.output + gen.c * gen.output * gen.output;
+                    sumCost += cost;
+                    return { ...gen, cost };
+                });
+
+                setGenerators(currentGens);
+                setResult({
+                    lambda: lambda,
+                    totalGen: P_total,
+                    totalCost: sumCost,
+                    systemLoss: P_loss,
+                    iterations: iter
+                });
+            };
+
+            useEffect(() => {
+                solveEconomicDispatch();
+            }, [totalLoad, useLosses, JSON.stringify(generators.map(g => g.a + g.b + g.c))]);
+
+            const handleGenChange = (id, field, value) => {
+                const updated = generators.map(g => 
+                    g.id === id ? { ...g, [field]: parseFloat(value) } : g
+                );
+                setGenerators(updated);
+            };
+
+            const chartData = useMemo(() => {
+                return generators.map(g => ({
+                    name: g.name,
+                    Gen: parseFloat(g.output.toFixed(2)),
+                    Cost: parseFloat(g.cost.toFixed(2)),
+                    Limit: g.pMax
+                }));
+            }, [generators]);
+
+            const costCurveData = useMemo(() => {
+                const data = [];
+                for (let p = 0; p <= 500; p += 50) {
+                    const point = { Power: p };
+                    generators.forEach(g => {
+                        if (p >= g.pMin && p <= g.pMax) {
+                            point[g.name] = g.a + g.b * p + g.c * p * p;
+                        }
+                    });
+                    data.push(point);
+                }
+                return data;
+            }, [generators]);
+
+            return (
+                <div className="min-h-screen bg-slate-50 p-6 font-sans text-slate-800">
+                    <div className="max-w-7xl mx-auto">
+                        
+                        {/* Header */}
+                        <header className="mb-8 border-b pb-4 bg-white p-6 rounded-xl shadow-sm">
+                            <h1 className="text-3xl font-bold text-blue-700 flex items-center gap-2">
+                                <ZapIcon />
+                                โปรแกรมจำลอง Economic Dispatch
+                            </h1>
+                            <p className="text-slate-500 mt-2">
+                                สื่อการสอนวิชาการวิเคราะห์ระบบไฟฟ้ากำลัง (สำหรับระดับอาชีวศึกษา/ปริญญาตรี)
+                            </p>
+                        </header>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            
+                            {/* Left Column: Controls */}
+                            <div className="lg:col-span-1 space-y-6">
+                                
+                                {/* System Controls */}
+                                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                                        <SettingsIcon /> ควบคุมระบบ (System)
+                                    </h2>
+                                    
+                                    <div className="mb-6">
+                                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                                            โหลดรวมของระบบ (Total Load): <span className="text-blue-600 font-bold">{totalLoad} MW</span>
+                                        </label>
+                                        <input 
+                                            type="range" 
+                                            min="100" 
+                                            max="1000" 
+                                            step="10"
+                                            value={totalLoad} 
+                                            onChange={(e) => setTotalLoad(parseInt(e.target.value))}
+                                            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                                        <div className="flex flex-col">
+                                            <span className="font-semibold text-sm">คิด Power Loss</span>
+                                            <span className="text-xs text-slate-500">Transmission Line Losses</span>
+                                        </div>
+                                        <button 
+                                            onClick={() => setUseLosses(!useLosses)}
+                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${useLosses ? 'bg-blue-600' : 'bg-slate-300'}`}
+                                        >
+                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${useLosses ? 'translate-x-6' : 'translate-x-1'}`} />
+                                        </button>
+                                    </div>
+                                    
+                                    {useLosses && (
+                                        <div className="mt-4 p-3 bg-yellow-50 text-xs text-yellow-800 rounded border border-yellow-200">
+                                            <InfoIcon />
+                                            การคำนวณแบบมี Loss จะใช้ค่าสัมประสิทธิ์ B อย่างง่ายเพื่อแสดงผลกระทบของระยะทางส่งไฟฟ้า
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Generator Configs */}
+                                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 max-h-[500px] overflow-y-auto">
+                                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                                        <ActivityIcon /> ตั้งค่าเครื่องกำเนิดไฟฟ้า
+                                    </h2>
+                                    <p className="text-xs text-slate-500 mb-4">Cost Function: F = a + bP + cP²</p>
+
+                                    {generators.map((gen) => (
+                                        <div key={gen.id} className="mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200 relative">
+                                            <div className="absolute top-2 right-2 text-xs font-bold text-slate-400">#{gen.id}</div>
+                                            <h3 className="font-bold text-slate-700 mb-2">{gen.name}</h3>
+                                            
+                                            <div className="grid grid-cols-3 gap-2 text-sm">
+                                                <div>
+                                                    <label className="block text-slate-500 text-xs">a (Fixed)</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={gen.a} 
+                                                        onChange={(e) => handleGenChange(gen.id, 'a', e.target.value)}
+                                                        className="w-full p-1 border rounded"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-slate-500 text-xs">b (Linear)</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={gen.b} 
+                                                        onChange={(e) => handleGenChange(gen.id, 'b', e.target.value)}
+                                                        className="w-full p-1 border rounded"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-slate-500 text-xs">c (Quadratic)</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={gen.c} 
+                                                        step="0.001"
+                                                        onChange={(e) => handleGenChange(gen.id, 'c', e.target.value)}
+                                                        className="w-full p-1 border rounded"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+                                                <div>
+                                                    <label className="block text-slate-500 text-xs">P min</label>
+                                                    <input type="number" value={gen.pMin} className="w-full p-1 bg-slate-100 rounded text-slate-400" disabled />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-slate-500 text-xs">P max</label>
+                                                    <input type="number" value={gen.pMax} className="w-full p-1 bg-slate-100 rounded text-slate-400" disabled />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                            </div>
+
+                            {/* Right Column: Visualization & Results */}
+                            <div className="lg:col-span-2 space-y-6">
+                                
+                                {/* KPI Cards */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="bg-blue-600 text-white p-4 rounded-xl shadow-lg">
+                                        <div className="text-blue-200 text-sm">System Lambda (λ)</div>
+                                        <div className="text-2xl font-bold">{result.lambda.toFixed(2)}</div>
+                                        <div className="text-xs">$/MWh</div>
+                                    </div>
+                                    <div className="bg-emerald-600 text-white p-4 rounded-xl shadow-lg">
+                                        <div className="text-emerald-200 text-sm">Total Cost</div>
+                                        <div className="text-2xl font-bold">{result.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                        <div className="text-xs">$/h</div>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-xl shadow border border-slate-200">
+                                        <div className="text-slate-500 text-sm">Total Generation</div>
+                                        <div className="text-2xl font-bold text-slate-800">{result.totalGen.toFixed(1)} <span className="text-sm font-normal">MW</span></div>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-xl shadow border border-slate-200">
+                                        <div className="text-slate-500 text-sm">System Loss</div>
+                                        <div className={`text-2xl font-bold ${useLosses ? 'text-red-500' : 'text-slate-300'}`}>
+                                            {result.systemLoss.toFixed(2)} <span className="text-sm font-normal">MW</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Main Charts */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    
+                                    {/* Load Allocation Chart */}
+                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-80">
+                                        <h3 className="font-semibold text-slate-700 mb-4">การจัดสรรโหลด (Generation Allocation)</h3>
+                                        <div style={{ width: '100%', height: '85%' }}>
+                                            <ResponsiveContainer>
+                                                <BarChart data={chartData}>
+                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                    <XAxis dataKey="name" />
+                                                    <YAxis label={{ value: 'MW', angle: -90, position: 'insideLeft' }} />
+                                                    <Tooltip cursor={{fill: 'transparent'}} />
+                                                    <Bar dataKey="Gen" fill="#3b82f6" name="Output (MW)">
+                                                        {chartData.map((entry, index) => (
+                                                            <Cell key={`cell-${index}`} fill={index === 0 ? '#3b82f6' : index === 1 ? '#10b981' : '#f59e0b'} />
+                                                        ))}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+
+                                    {/* Cost Curve Chart */}
+                                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-80">
+                                        <h3 className="font-semibold text-slate-700 mb-4">กราฟต้นทุน (Cost Function Curves)</h3>
+                                        <div style={{ width: '100%', height: '85%' }}>
+                                            <ResponsiveContainer>
+                                                <LineChart data={costCurveData}>
+                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                    <XAxis dataKey="Power" label={{ value: 'MW', position: 'insideBottomRight', offset: -5 }} />
+                                                    <YAxis label={{ value: 'Cost ($/h)', angle: -90, position: 'insideLeft' }} />
+                                                    <Tooltip />
+                                                    <Legend />
+                                                    <Line type="monotone" dataKey="Gen 1 (ถ่านหิน)" stroke="#3b82f6" dot={false} strokeWidth={2} />
+                                                    <Line type="monotone" dataKey="Gen 2 (ก๊าซฯ)" stroke="#10b981" dot={false} strokeWidth={2} />
+                                                    <Line type="monotone" dataKey="Gen 3 (น้ำมัน)" stroke="#f59e0b" dot={false} strokeWidth={2} />
+                                                </LineChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Explanation / Theory Box */}
+                                <div className="bg-slate-800 text-slate-200 p-6 rounded-xl shadow-lg">
+                                    <h3 className="font-bold text-white mb-2 flex items-center gap-2">
+                                        <RefreshCwIcon /> หลักการทำงาน (Theory)
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                                        <div>
+                                            <p className="font-semibold text-blue-300 mb-1">1. กรณีไม่คิด Loss (Ideal):</p>
+                                            <p className="mb-2">
+                                                หลักการ Equal Incremental Cost: ระบบจะประหยัดที่สุดเมื่อ "ต้นทุนส่วนเพิ่ม" (Incremental Cost, λ) ของทุกเครื่องเท่ากัน
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold text-yellow-300 mb-1">2. กรณีคิด Loss (Penalty Factor):</p>
+                                            <p className="mb-2">
+                                                เครื่องที่อยู่ไกลโหลดจะทำให้เกิด Loss มากกว่า จึงต้องมี "ค่าปรับ" (L) ทำให้ถูกสั่งเดินเครื่องน้อยลงเมื่อเทียบกับเครื่องที่อยู่ใกล้
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<EconomicDispatchApp />);
+    </script>
+</body>
+</html>
