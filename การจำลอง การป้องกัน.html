@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>โปรแกรมจำลองการป้องกันระบบไฟฟ้ากำลัง (Power System Protection)</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for TCC Graph -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
+        
+        body { font-family: 'Sarabun', sans-serif; }
+        
+        .breaker {
+            transition: all 0.3s ease;
+            transform-origin: center;
+        }
+        .breaker.open {
+            stroke: #22c55e; /* Green for Open/Safe/Isolated */
+            fill: #22c55e;
+            transform: rotate(-45deg);
+        }
+        .breaker.closed {
+            stroke: #ef4444; /* Red for Closed/Live */
+            fill: #ef4444;
+            transform: rotate(0deg);
+        }
+        
+        .line { stroke: #333; stroke-width: 3; transition: stroke 0.3s; }
+        .line.energized { stroke: #ef4444; }
+        .line.deenergized { stroke: #9ca3af; }
+        .line.faulted { stroke: #fbbf24; animation: flash 0.5s infinite; }
+
+        @keyframes flash {
+            0% { stroke: #fbbf24; stroke-width: 6; }
+            50% { stroke: #ef4444; stroke-width: 3; }
+            100% { stroke: #fbbf24; stroke-width: 6; }
+        }
+
+        .zone-box {
+            fill: none;
+            stroke-dasharray: 5, 5;
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+        .zone-box:hover { opacity: 1; stroke-width: 2; }
+
+        /* Range Slider Styling */
+        input[type=range] {
+            accent-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4">
+
+    <!-- Header -->
+    <header class="bg-white shadow-md rounded-lg p-6 mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">ระบบจำลองการป้องกันไฟฟ้ากำลัง (Power System Protection)</h1>
+        <p class="text-gray-600 mt-2">เรียนรู้เรื่อง วัตถุประสงค์, โซนป้องกัน, และการประสานสัมพันธ์ของรีเลย์ (Relay Coordination)</p>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Panel: Diagram & Controls (8 cols) -->
+        <div class="lg:col-span-8 space-y-6">
+            
+            <!-- 1. Single Line Diagram & Zones -->
+            <div class="bg-white p-4 rounded-lg shadow-md border-t-4 border-blue-500">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-gray-700">1. แผนภาพเส้นเดี่ยวและโซนป้องกัน (Single Line Diagram & Zones)</h2>
+                    <button onclick="toggleInfo('zones')" class="text-sm text-blue-500 hover:underline">? เกี่ยวกับโซน</button>
+                </div>
+                
+                <!-- SVG Diagram -->
+                <div class="relative w-full h-64 border rounded bg-gray-50 flex justify-center items-center overflow-hidden">
+                    <svg viewBox="0 0 800 300" class="w-full h-full">
+                        <!-- Definitions -->
+                        <defs>
+                            <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                                <path d="M0,0 L0,6 L9,3 z" fill="#333" />
+                            </marker>
+                        </defs>
+
+                        <!-- Zones (Dashed Boxes) -->
+                        <rect x="50" y="50" width="300" height="200" rx="10" class="zone-box" stroke="purple" />
+                        <text x="60" y="70" fill="purple" font-size="12">Transmission Zone (A)</text>
+                        
+                        <rect x="300" y="80" width="450" height="140" rx="10" class="zone-box" stroke="orange" />
+                        <text x="680" y="100" fill="orange" font-size="12">Distribution Zone (B)</text>
+
+                        <!-- Main Lines -->
+                        <line id="line-source" x1="20" y1="150" x2="100" y2="150" class="line energized" />
+                        <!-- Bus 1 -->
+                        <rect x="100" y="100" width="10" height="100" fill="#333" />
+                        
+                        <!-- Line A to B -->
+                        <line id="line-AB" x1="110" y1="150" x2="400" y2="150" class="line energized" />
+                        
+                        <!-- CB A -->
+                        <g transform="translate(140, 150)">
+                            <rect x="-10" y="-10" width="20" height="20" fill="white" stroke="#333" stroke-width="2"/>
+                            <rect id="cb-a" x="-5" y="-5" width="10" height="10" class="breaker closed" />
+                            <text x="-15" y="-20" font-size="14" font-weight="bold">CB A</text>
+                            <text x="-15" y="35" font-size="10" fill="blue">CT</text>
+                            <circle cx="0" cy="0" r="15" fill="none" stroke="blue" stroke-width="2" stroke-dasharray="3,2" />
+                        </g>
+
+                        <!-- Bus 2 -->
+                        <rect x="400" y="100" width="10" height="100" fill="#333" />
+
+                        <!-- Line B to Load -->
+                        <line id="line-BLoad" x1="410" y1="150" x2="700" y2="150" class="line energized" />
+
+                        <!-- CB B -->
+                        <g transform="translate(440, 150)">
+                            <rect x="-10" y="-10" width="20" height="20" fill="white" stroke="#333" stroke-width="2"/>
+                            <rect id="cb-b" x="-5" y="-5" width="10" height="10" class="breaker closed" />
+                            <text x="-15" y="-20" font-size="14" font-weight="bold">CB B</text>
+                            <circle cx="0" cy="0" r="15" fill="none" stroke="blue" stroke-width="2" stroke-dasharray="3,2" />
+                        </g>
+
+                        <!-- Fault Indicators (Hidden by default) -->
+                        <g id="fault-A" style="display:none;" transform="translate(270, 130)">
+                            <path d="M0,0 L10,20 L-10,30 L5,50" stroke="#ef4444" fill="none" stroke-width="3"/>
+                            <text x="-20" y="-10" fill="red" font-weight="bold">FAULT A</text>
+                        </g>
+                        
+                        <g id="fault-B" style="display:none;" transform="translate(600, 130)">
+                            <path d="M0,0 L10,20 L-10,30 L5,50" stroke="#ef4444" fill="none" stroke-width="3"/>
+                            <text x="-20" y="-10" fill="red" font-weight="bold">FAULT B</text>
+                        </g>
+
+                        <!-- Load -->
+                        <rect x="700" y="130" width="40" height="40" fill="#333" />
+                        <text x="705" y="155" fill="white" font-size="10">LOAD</text>
+                    </svg>
+                </div>
+                <div id="zone-info" class="hidden bg-blue-50 p-3 text-sm rounded mt-2 text-blue-800">
+                    <strong>หลักการทับซ้อน (Overlapping):</strong> สังเกตว่าโซนสีม่วงและสีส้มซ้อนทับกันบริเวณ Breaker เพื่อไม่ให้เกิด "จุดบอด" หากเกิดฟอลต์ที่ตัว Breaker เอง
+                </div>
+            </div>
+
+            <!-- 2. Relay Settings -->
+            <div class="bg-white p-4 rounded-lg shadow-md border-t-4 border-green-500">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-gray-700">2. ตั้งค่ารีเลย์ (Relay Settings)</h2>
+                    <button onclick="toggleInfo('settings')" class="text-sm text-green-600 hover:underline">? คำอธิบายค่า</button>
+                </div>
+                <div id="settings-info" class="hidden bg-green-50 p-3 text-sm rounded mb-4 text-green-800">
+                    <ul class="list-disc pl-5">
+                        <li><strong>Pickup (Ip):</strong> กระแสต่ำสุดที่รีเลย์เริ่มทำงาน (ควร > Load, < Fault)</li>
+                        <li><strong>TMS (Time Multiplier):</strong> ตัวคูณเวลา ยิ่งมากยิ่งตัดช้า (ใช้ทำ Coordination)</li>
+                    </ul>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Relay A Settings (Upstream) -->
+                    <div class="border p-4 rounded bg-gray-50">
+                        <h3 class="font-bold text-purple-700 mb-2 border-b pb-1">Relay A (ต้นทาง - Backup)</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Pickup Current (Ip): <span id="val-ip-a">400</span> A</label>
+                                <input type="range" id="slider-ip-a" min="100" max="1000" step="50" value="400" class="w-full" oninput="updateSettings()">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Time Multiplier (TMS): <span id="val-tms-a">0.3</span></label>
+                                <input type="range" id="slider-tms-a" min="0.05" max="1.0" step="0.05" value="0.3" class="w-full" oninput="updateSettings()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Relay B Settings (Downstream) -->
+                    <div class="border p-4 rounded bg-gray-50">
+                        <h3 class="font-bold text-orange-600 mb-2 border-b pb-1">Relay B (ปลายทาง - Primary)</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Pickup Current (Ip): <span id="val-ip-b">200</span> A</label>
+                                <input type="range" id="slider-ip-b" min="50" max="500" step="25" value="200" class="w-full" oninput="updateSettings()">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Time Multiplier (TMS): <span id="val-tms-b">0.1</span></label>
+                                <input type="range" id="slider-tms-b" min="0.05" max="1.0" step="0.05" value="0.1" class="w-full" oninput="updateSettings()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Simulation Control -->
+            <div class="bg-white p-4 rounded-lg shadow-md border-t-4 border-red-500">
+                <h2 class="text-lg font-bold text-gray-700 mb-4">3. ทดสอบการลัดวงจร (Simulation)</h2>
+                
+                <div class="flex flex-col md:flex-row gap-4 items-end">
+                    <div class="flex-1 w-full">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">ตำแหน่งฟอลต์ (Fault Location)</label>
+                        <select id="fault-loc" class="w-full p-2 border rounded bg-gray-50">
+                            <option value="B">Zone B (ปลายสาย - หลัง CB B)</option>
+                            <option value="A">Zone A (กลางสาย - ระหว่าง CB A และ B)</option>
+                        </select>
+                    </div>
+                    <div class="flex-1 w-full">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">กระแสลัดวงจร (Fault Current): <span id="val-ifault">2000</span> A</label>
+                        <input type="range" id="slider-ifault" min="500" max="5000" step="100" value="2000" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="runSimulation()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded shadow transition">
+                            ⚡ SIMULATE
+                        </button>
+                        <button onclick="resetSim()" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded shadow transition">
+                            Reset
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Results Log -->
+                <div id="sim-result" class="mt-4 p-4 bg-gray-900 text-green-400 font-mono text-sm rounded h-32 overflow-y-auto">
+                    > System Ready.<br>
+                    > Waiting for simulation...
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Panel: Graph & Theory (4 cols) -->
+        <div class="lg:col-span-4 space-y-6">
+            
+            <!-- TCC Graph -->
+            <div class="bg-white p-4 rounded-lg shadow-md">
+                <h3 class="font-bold text-gray-700 mb-2">กราฟประสานสัมพันธ์ (Coordination Graph)</h3>
+                <div class="h-64">
+                    <canvas id="tccChart"></canvas>
+                </div>
+                <p class="text-xs text-gray-500 mt-2 text-center">แกน X: กระแส (A) [Log Scale] | แกน Y: เวลา (s)</p>
+                <div class="mt-2 text-sm text-gray-600">
+                    <span class="inline-block w-3 h-3 bg-purple-600 rounded-full mr-1"></span> Relay A
+                    <span class="inline-block w-3 h-3 bg-orange-500 rounded-full ml-2 mr-1"></span> Relay B
+                </div>
+                <div class="mt-4 bg-yellow-50 p-2 text-xs text-yellow-800 rounded border border-yellow-200">
+                    <strong>คำแนะนำ:</strong> เส้นของ Relay A (Backup) ควรอยู่เหนือเส้น Relay B (Primary) เสมอ และควรห่างกันประมาณ 0.2-0.4 วินาที (CTI).
+                </div>
+            </div>
+
+            <!-- Objectives Theory -->
+            <div class="bg-white p-4 rounded-lg shadow-md">
+                <h3 class="font-bold text-gray-700 border-b pb-2 mb-2">วัตถุประสงค์ระบบป้องกัน</h3>
+                <ul class="space-y-2 text-sm text-gray-600">
+                    <li>
+                        <span class="font-bold text-indigo-600">1. Reliability:</span> เชื่อถือได้ (ทำงานเมื่อต้องทำ)
+                    </li>
+                    <li>
+                        <span class="font-bold text-indigo-600">2. Selectivity:</span> เลือกตัดเฉพาะจุดเกิดเหตุ (A ไม่ควรตัดถ้า B ทำงานได้)
+                    </li>
+                    <li>
+                        <span class="font-bold text-indigo-600">3. Speed:</span> ตัดวงจรให้เร็วที่สุดเพื่อลดความเสียหาย
+                    </li>
+                </ul>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        // --- Global Variables ---
+        let chart;
+        const config = {
+            cbA: 'closed',
+            cbB: 'closed',
+            ipA: 400, tmsA: 0.3,
+            ipB: 200, tmsB: 0.1,
+            faultCurrent: 2000
+        };
+
+        // --- IEC Standard Inverse Formula ---
+        // t = TMS * 0.14 / ((I_fault / I_pickup)^0.02 - 1)
+        function calculateTripTime(current, ip, tms) {
+            if (current < ip) return Infinity; // No trip if current < pickup
+            const ratio = current / ip;
+            const denominator = Math.pow(ratio, 0.02) - 1;
+            if (denominator <= 0) return Infinity; // Safety check
+            let time = (0.14 * tms) / denominator;
+            return time;
+        }
+
+        // --- Initialization ---
+        window.onload = function() {
+            setupChart();
+            updateSettings(); // Initial UI update
+            
+            // Link Sliders to Values
+            ['ip-a', 'tms-a', 'ip-b', 'tms-b', 'ifault'].forEach(id => {
+                const slider = document.getElementById(`slider-${id}`);
+                const display = document.getElementById(`val-${id}`);
+                slider.addEventListener('input', (e) => {
+                    display.innerText = e.target.value;
+                    if(id === 'ifault') config.faultCurrent = parseFloat(e.target.value);
+                    else updateSettings();
+                });
+            });
+        };
+
+        // --- Update Logic ---
+        function updateSettings() {
+            // Get values
+            config.ipA = parseFloat(document.getElementById('slider-ip-a').value);
+            config.tmsA = parseFloat(document.getElementById('slider-tms-a').value);
+            config.ipB = parseFloat(document.getElementById('slider-ip-b').value);
+            config.tmsB = parseFloat(document.getElementById('slider-tms-b').value);
+
+            // Update Chart
+            updateChartData();
+        }
+
+        function toggleInfo(id) {
+            const el = document.getElementById(`${id}-info`);
+            el.classList.toggle('hidden');
+        }
+
+        // --- Simulation Logic ---
+        async function runSimulation() {
+            resetSimUI();
+            const location = document.getElementById('fault-loc').value;
+            const faultCurrent = parseFloat(document.getElementById('slider-ifault').value);
+            const logEl = document.getElementById('sim-result');
+
+            // 1. Show Fault on Diagram
+            const faultEl = document.getElementById(location === 'A' ? 'fault-A' : 'fault-B');
+            faultEl.style.display = 'block';
+            
+            log(`> ⚡ FAULT Initiated at Zone ${location}, Current: ${faultCurrent}A`);
+
+            // 2. Calculate Trip Times
+            const timeA = calculateTripTime(faultCurrent, config.ipA, config.tmsA);
+            const timeB = calculateTripTime(faultCurrent, config.ipB, config.tmsB);
+
+            log(`> Calculation: Relay A sees it in ${timeA.toFixed(3)}s`);
+            if (location === 'B') {
+                log(`> Calculation: Relay B sees it in ${timeB.toFixed(3)}s`);
+            } else {
+                log(`> Relay B does not see fault (Upstream fault).`);
+            }
+
+            // 3. Logic Decision
+            let tripMsg = "";
+            let tripBreaker = "";
+            let actualTime = 0;
+
+            if (location === 'A') {
+                // Fault between A and B. Only A should trip.
+                if (timeA < 100) { // arbitrary max time
+                    tripMsg = "SUCCESS: CB A tripped correct zone.";
+                    tripBreaker = 'A';
+                    actualTime = timeA;
+                } else {
+                    tripMsg = "FAILURE: Relay A did not trip!";
+                }
+            } else if (location === 'B') {
+                // Fault at end. B should trip first. A is backup.
+                if (timeB < timeA) {
+                    tripMsg = "SUCCESS: CB B tripped (Primary Operation). Selectivity OK.";
+                    tripBreaker = 'B';
+                    actualTime = timeB;
+                } else if (timeA < timeB) {
+                    tripMsg = "FAILURE: CB A tripped before B! (Coordination Loss).";
+                    tripBreaker = 'A';
+                    actualTime = timeA;
+                } else {
+                     tripMsg = "FAILURE: No relay tripped!";
+                }
+            }
+
+            // 4. Animate result
+            if (tripBreaker) {
+                // Wait for the calculated time (scaled for UX, max 2 sec wait)
+                const waitTime = Math.min(actualTime * 1000, 2000); 
+                
+                log(`> Tripping in ${actualTime.toFixed(3)}s...`);
+                
+                await new Promise(r => setTimeout(r, waitTime)); // Delay
+
+                if (tripBreaker === 'A') {
+                    openBreaker('a');
+                    document.getElementById('line-AB').classList.remove('energized');
+                    document.getElementById('line-AB').classList.add('deenergized');
+                    document.getElementById('line-BLoad').classList.remove('energized');
+                    document.getElementById('line-BLoad').classList.add('deenergized');
+                } else {
+                    openBreaker('b');
+                    document.getElementById('line-BLoad').classList.remove('energized');
+                    document.getElementById('line-BLoad').classList.add('deenergized');
+                }
+                log(`> ${tripMsg}`);
+            } else {
+                log(`> ${tripMsg}`);
+            }
+        }
+
+        function log(msg) {
+            const el = document.getElementById('sim-result');
+            el.innerHTML += msg + "<br>";
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function openBreaker(id) {
+            const cb = document.getElementById(`cb-${id}`);
+            cb.classList.remove('closed');
+            cb.classList.add('open');
+        }
+
+        function closeBreaker(id) {
+            const cb = document.getElementById(`cb-${id}`);
+            cb.classList.remove('open');
+            cb.classList.add('closed');
+        }
+
+        function resetSim() {
+            resetSimUI();
+            document.getElementById('sim-result').innerHTML = "> System Ready.<br>";
+        }
+
+        function resetSimUI() {
+            closeBreaker('a');
+            closeBreaker('b');
+            document.getElementById('fault-A').style.display = 'none';
+            document.getElementById('fault-B').style.display = 'none';
+            
+            // Energize lines
+            ['line-source', 'line-AB', 'line-BLoad'].forEach(id => {
+                const l = document.getElementById(id);
+                l.classList.remove('deenergized');
+                l.classList.add('energized');
+            });
+        }
+
+        // --- Chart.js Setup ---
+        function setupChart() {
+            const ctx = document.getElementById('tccChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Relay A (Backup)',
+                            borderColor: 'purple',
+                            borderWidth: 2,
+                            data: [],
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Relay B (Primary)',
+                            borderColor: '#f97316', // orange-500
+                            borderWidth: 2,
+                            data: [],
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'logarithmic',
+                            title: { display: true, text: 'Current (A)' },
+                            min: 50,
+                            max: 10000
+                        },
+                        y: {
+                            type: 'logarithmic',
+                            title: { display: true, text: 'Time (s)' },
+                            min: 0.01,
+                            max: 10
+                        }
+                    },
+                    animation: false
+                }
+            });
+        }
+
+        function updateChartData() {
+            // Generate points for Relay A and B
+            const dataA = [];
+            const dataB = [];
+
+            // Sweep current from 50A to 10000A
+            for (let i = 50; i <= 10000; i += i < 1000 ? 50 : 500) {
+                // Relay A
+                let tA = calculateTripTime(i, config.ipA, config.tmsA);
+                if (tA > 10) tA = null; // Don't plot too high
+                if (tA < 0.01) tA = 0.01;
+                if (tA !== Infinity && tA !== null) dataA.push({x: i, y: tA});
+
+                // Relay B
+                let tB = calculateTripTime(i, config.ipB, config.tmsB);
+                if (tB > 10) tB = null;
+                if (tB < 0.01) tB = 0.01;
+                if (tB !== Infinity && tB !== null) dataB.push({x: i, y: tB});
+            }
+
+            chart.data.datasets[0].data = dataA;
+            chart.data.datasets[1].data = dataB;
+            chart.update();
+        }
+
+    </script>
+</body>
+</html>
