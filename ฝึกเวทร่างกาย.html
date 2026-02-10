@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตารางฝึก Calisthenics</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Prompt -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: #e2e8f0; /* Slate 200 */
+        }
+        .active-tab {
+            background-color: #3b82f6; /* Blue 500 */
+            color: white;
+            font-weight: 600;
+        }
+        .inactive-tab {
+            background-color: #1e293b; /* Slate 800 */
+            color: #94a3b8;
+        }
+        .card-gradient {
+            background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+        }
+        /* Mode Buttons */
+        .mode-btn {
+            transition: all 0.2s;
+            opacity: 0.6;
+            border: 1px solid transparent;
+        }
+        .mode-btn.active {
+            opacity: 1;
+            transform: scale(1.05);
+            font-weight: bold;
+            border-color: currentColor;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569; 
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-dumbbell text-blue-500 text-2xl"></i>
+                <h1 class="text-xl font-bold text-white tracking-wide">CALISTHENICS <span class="text-blue-500">THAI</span></h1>
+            </div>
+            <button onclick="toggleTimerModal()" class="bg-slate-800 p-2 rounded-full hover:bg-slate-700 transition">
+                <i class="fa-solid fa-stopwatch text-yellow-400 text-xl"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow p-4 max-w-4xl mx-auto w-full">
+        
+        <!-- Intro Section -->
+        <section class="mb-8 text-center py-6">
+            <h2 class="text-2xl md:text-3xl font-bold text-white mb-2">สร้างกล้ามเนื้อด้วยน้ำหนักตัว</h2>
+            <p class="text-slate-400 text-sm md:text-base">เลือกโปรแกรมที่เหมาะกับคุณ แล้วเริ่มฝึกได้เลย!</p>
+        </section>
+
+        <!-- Tabs Navigation -->
+        <div class="grid grid-cols-2 gap-2 mb-6 bg-slate-800 p-1 rounded-xl">
+            <button onclick="switchTab('beginner')" id="tab-beginner" class="active-tab py-3 rounded-lg transition-all duration-300">
+                <i class="fa-solid fa-seedling mr-2"></i>ผู้เริ่มต้น
+            </button>
+            <button onclick="switchTab('intermediate')" id="tab-intermediate" class="inactive-tab py-3 rounded-lg transition-all duration-300">
+                <i class="fa-solid fa-fire mr-2"></i>ระดับกลาง
+            </button>
+        </div>
+
+        <!-- Beginner Content -->
+        <div id="content-beginner" class="block animate-fade-in">
+            <div class="bg-blue-900/20 border border-blue-500/30 p-4 rounded-xl mb-6">
+                <h3 class="text-blue-400 font-bold text-lg mb-1"><i class="fa-solid fa-circle-info mr-2"></i>หลักการฝึก</h3>
+                <p class="text-sm text-slate-300">ฝึกวันเว้นวัน (3 วัน/สัปดาห์) เน้นท่าพื้นฐานเพื่อให้ร่างกายปรับสภาพ</p>
+                <div class="mt-2 flex gap-2 text-xs">
+                    <span class="bg-blue-600 px-2 py-1 rounded text-white">จันทร์: ฝึก</span>
+                    <span class="bg-slate-700 px-2 py-1 rounded text-slate-300">อังคาร: พัก</span>
+                    <span class="bg-blue-600 px-2 py-1 rounded text-white">พุธ: ฝึก</span>
+                    <span class="bg-slate-700 px-2 py-1 rounded text-slate-300">พฤหัส: พัก</span>
+                    <span class="bg-blue-600 px-2 py-1 rounded text-white">ศุกร์: ฝึก</span>
+                </div>
+            </div>
+
+            <!-- Beginner Intensity Selector -->
+            <div class="flex justify-center gap-3 mb-6 bg-slate-800/50 p-2 rounded-xl">
+                <button onclick="setIntensity('easy')" class="mode-btn text-green-400 bg-green-900/20 px-4 py-2 rounded-lg text-sm w-full" id="btn-beg-easy">ง่าย</button>
+                <button onclick="setIntensity('normal')" class="mode-btn active text-blue-400 bg-blue-900/20 px-4 py-2 rounded-lg text-sm w-full" id="btn-beg-normal">ปกติ</button>
+                <button onclick="setIntensity('hard')" class="mode-btn text-red-400 bg-red-900/20 px-4 py-2 rounded-lg text-sm w-full" id="btn-beg-hard">เข้มข้น</button>
+            </div>
+
+            <!-- Workout List -->
+            <div class="space-y-4">
+                <!-- Exercise Card 1 -->
+                <div class="card-gradient p-5 rounded-xl border border-slate-700 shadow-lg">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h4 class="text-lg font-bold text-white">1. Australian Pull-ups</h4>
+                            <span class="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">กล้ามหลัง & ไบเซป</span>
+                        </div>
+                        <div id="beg-ex1" class="bg-slate-700 text-white px-3 py-1 rounded-lg font-bold transition-all duration-300">3 x 8-12</div>
+                    </div>
+                    <p class="text-sm text-slate-400 mb-3">ดึงข้อแนวนอน (ใช้บาร์ต่ำ หรือขอบโต๊ะที่แข็งแรง) ช่วยสร้างพื้นฐานแรงดึง</p>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div class="bg-blue-500 h-full w-3/4"></div>
+                    </div>
+                </div>
+
+                <!-- Exercise Card 2 -->
+                <div class="card-gradient p-5 rounded-xl border border-slate-700 shadow-lg">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h4 class="text-lg font-bold text-white">2. Knee Push-ups / Push-ups</h4>
+                            <span class="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">อก & หลังแขน</span>
+                        </div>
+                        <div id="beg-ex2" class="bg-slate-700 text-white px-3 py-1 rounded-lg font-bold transition-all duration-300">3 x 8-12</div>
+                    </div>
+                    <p class="text-sm text-slate-400">วิดพื้น (หากทำไม่ไหวให้วางเข่า) รักษาลำตัวให้ตรง เกร็งหน้าท้อง</p>
+                </div>
+
+                <!-- Exercise Card 3 -->
+                <div class="card-gradient p-5 rounded-xl border border-slate-700 shadow-lg">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h4 class="text-lg font-bold text-white">3. Bodyweight Squats</h4>
+                            <span class="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">ขา & สะโพก</span>
+                        </div>
+                        <div id="beg-ex3" class="bg-slate-700 text-white px-3 py-1 rounded-lg font-bold transition-all duration-300">3 x 15-20</div>
+                    </div>
+                    <p class="text-sm text-slate-400">ลุกนั่ง ทิ้งน้ำหนักไปที่ส้นเท้า หลังตรง ตามองไปข้างหน้า</p>
+                </div>
+
+                <!-- Exercise Card 4 -->
+                <div class="card-gradient p-5 rounded-xl border border-slate-700 shadow-lg">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h4 class="text-lg font-bold text-white">4. Bench Dips</h4>
+                            <span class="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">หลังแขน (Triceps)</span>
+                        </div>
+                        <div id="beg-ex4" class="bg-slate-700 text-white px-3 py-1 rounded-lg font-bold transition-all duration-300">3 x 10-12</div>
+                    </div>
+                    <p class="text-sm text-slate-400">ใช้เก้าอี้หรือขอบเตียง ดันตัวขึ้นลง ศอกชี้ไปด้านหลัง</p>
+                </div>
+
+                <!-- Exercise Card 5 -->
+                <div class="card-gradient p-5 rounded-xl border border-slate-700 shadow-lg">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h4 class="text-lg font-bold text-white">5. Plank</h4>
+                            <span class="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded">แกนกลางลำตัว</span>
+                        </div>
+                        <div id="beg-ex5" class="bg-slate-700 text-white px-3 py-1 rounded-lg font-bold transition-all duration-300">3 x 30s</div>
+                    </div>
+                    <p class="text-sm text-slate-400">เกร็งหน้าท้องและก้น อย่าให้หลังแอ่น</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Intermediate Content -->
+        <div id="content-intermediate" class="hidden animate-fade-in">
+             <div class="bg-orange-900/20 border border-orange-500/30 p-4 rounded-xl mb-6">
+                <h3 class="text-orange-400 font-bold text-lg mb-1"><i class="fa-solid fa-calendar-week mr-2"></i>ตารางฝึก (Upper/Lower)</h3>
+                <p class="text-sm text-slate-300">แบ่งฝึก 4 วัน/สัปดาห์ เพื่อความเข้มข้นที่มากขึ้น</p>
+                <div class="grid grid-cols-2 gap-2 mt-3 text-xs">
+                    <div class="bg-slate-800 p-2 rounded">จันทร์: <span class="text-orange-400 font-bold">Upper Body</span></div>
+                    <div class="bg-slate-800 p-2 rounded">อังคาร: <span class="text-green-400 font-bold">Lower Body</span></div>
+                    <div class="bg-slate-800 p-2 rounded">พุธ: <span class="text-slate-400">พัก</span></div>
+                    <div class="bg-slate-800 p-2 rounded">พฤหัส: <span class="text-orange-400 font-bold">Upper Body</span></div>
+                    <div class="bg-slate-800 p-2 rounded">ศุกร์: <span class="text-green-400 font-bold">Lower Body</span></div>
+                    <div class="bg-slate-800 p-2 rounded">เสาร์: <span class="text-blue-400">Cardio/Abs</span></div>
+                </div>
+            </div>
+
+            <!-- Intermediate Intensity Selector -->
+            <div class="flex justify-center gap-3 mb-6 bg-slate-800/50 p-2 rounded-xl">
+                <button onclick="setIntensity('easy')" class="mode-btn text-green-400 bg-green-900/20 px-4 py-2 rounded-lg text-sm w-full" id="btn-int-easy">ง่าย</button>
+                <button onclick="setIntensity('normal')" class="mode-btn active text-blue-400 bg-blue-900/20 px-4 py-2 rounded-lg text-sm w-full" id="btn-int-normal">ปกติ</button>
+                <button onclick="setIntensity('hard')" class="mode-btn text-red-400 bg-red-900/20 px-4 py-2 rounded-lg text-sm w-full" id="btn-int-hard">เข้มข้น</button>
+            </div>
+
+            <!-- Upper Body Section -->
+            <h3 class="text-xl font-bold text-orange-400 mb-4 pl-2 border-l-4 border-orange-500">วันฝึกท่อนบน (Upper Body)</h3>
+            <div class="space-y-4 mb-8">
+                <div class="card-gradient p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                    <div>
+                        <h4 class="font-bold text-white">Pull-ups (ดึงข้อปกติ)</h4>
+                        <p class="text-xs text-slate-400">เน้นฟอร์มที่ถูกต้อง คางพ้นบาร์</p>
+                    </div>
+                    <span id="int-ex1" class="text-white font-bold bg-slate-700 px-3 py-1 rounded transition-all duration-300">3-4 x 6-10</span>
+                </div>
+                <div class="card-gradient p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                    <div>
+                        <h4 class="font-bold text-white">Dips (ดิปบาร์คู่)</h4>
+                        <p class="text-xs text-slate-400">ลงลึก 90 องศา ตัวโน้มไปข้างหน้าเล็กน้อย</p>
+                    </div>
+                    <span id="int-ex2" class="text-white font-bold bg-slate-700 px-3 py-1 rounded transition-all duration-300">3-4 x 8-12</span>
+                </div>
+                <div class="card-gradient p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                    <div>
+                        <h4 class="font-bold text-white">Decline Push-ups</h4>
+                        <p class="text-xs text-slate-400">วิดพื้นโดยวางเท้าบนที่สูง เน้นอกบน</p>
+                    </div>
+                    <span id="int-ex3" class="text-white font-bold bg-slate-700 px-3 py-1 rounded transition-all duration-300">3 x 10-15</span>
+                </div>
+            </div>
+
+            <!-- Lower Body Section -->
+            <h3 class="text-xl font-bold text-green-400 mb-4 pl-2 border-l-4 border-green-500">วันฝึกท่อนล่าง (Lower Body)</h3>
+            <div class="space-y-4">
+                <div class="card-gradient p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                    <div>
+                        <h4 class="font-bold text-white">Bulgarian Split Squats</h4>
+                        <p class="text-xs text-slate-400">พาดขาหลังไว้บนเก้าอี้ แล้วย่อขาหน้า</p>
+                    </div>
+                    <span id="int-ex4" class="text-white font-bold bg-slate-700 px-3 py-1 rounded transition-all duration-300">3 x 8-10 (ต่อข้าง)</span>
+                </div>
+                <div class="card-gradient p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                    <div>
+                        <h4 class="font-bold text-white">Lunges (เดินท่าลันจ์)</h4>
+                        <p class="text-xs text-slate-400">ก้าวขายาวๆ ย่อตัวลงตรงๆ</p>
+                    </div>
+                    <span id="int-ex5" class="text-white font-bold bg-slate-700 px-3 py-1 rounded transition-all duration-300">3 x 20 ก้าว</span>
+                </div>
+                 <div class="card-gradient p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                    <div>
+                        <h4 class="font-bold text-white">Calf Raises</h4>
+                        <p class="text-xs text-slate-400">เขย่งปลายเท้า บนพื้นราบหรือขอบบันได</p>
+                    </div>
+                    <span id="int-ex6" class="text-white font-bold bg-slate-700 px-3 py-1 rounded transition-all duration-300">4 x 15-20</span>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-6 text-center">
+        <p class="text-slate-500 text-sm">© 2024 Calisthenics Thai Plan. ฝึกฝนอย่างสม่ำเสมอ.</p>
+    </footer>
+
+    <!-- Timer Modal -->
+    <div id="timer-modal" class="fixed inset-0 bg-black/80 z-50 hidden flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-slate-800 p-6 rounded-2xl w-80 text-center border border-slate-700 shadow-2xl relative">
+            <button onclick="toggleTimerModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <h3 class="text-xl font-bold text-white mb-4">⏱️ พักระหว่างเซต</h3>
+            
+            <div id="timer-display" class="text-5xl font-mono font-bold text-blue-400 mb-6 tracking-widest">00:00</div>
+            
+            <div class="grid grid-cols-3 gap-2 mb-4">
+                <button onclick="addTime(30)" class="bg-slate-700 text-slate-300 py-2 rounded hover:bg-slate-600">+30s</button>
+                <button onclick="addTime(60)" class="bg-slate-700 text-slate-300 py-2 rounded hover:bg-slate-600">+1m</button>
+                <button onclick="addTime(90)" class="bg-slate-700 text-slate-300 py-2 rounded hover:bg-slate-600">+1.5m</button>
+            </div>
+
+            <div class="flex gap-3 justify-center">
+                <button id="btn-start" onclick="startTimer()" class="bg-green-600 hover:bg-green-500 text-white py-2 px-6 rounded-lg font-bold w-full">เริ่ม</button>
+                <button id="btn-reset" onclick="resetTimer()" class="bg-red-600 hover:bg-red-500 text-white py-2 px-6 rounded-lg font-bold w-full hidden">หยุด/รีเซ็ต</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data for workouts
+        const workoutData = {
+            beginner: {
+                easy: [
+                    { id: 'beg-ex1', text: '2 x 6-8' },
+                    { id: 'beg-ex2', text: '2 x 6-8' },
+                    { id: 'beg-ex3', text: '2 x 10-12' },
+                    { id: 'beg-ex4', text: '2 x 6-8' },
+                    { id: 'beg-ex5', text: '2 x 20s' }
+                ],
+                normal: [
+                    { id: 'beg-ex1', text: '3 x 8-12' },
+                    { id: 'beg-ex2', text: '3 x 8-12' },
+                    { id: 'beg-ex3', text: '3 x 15-20' },
+                    { id: 'beg-ex4', text: '3 x 10-12' },
+                    { id: 'beg-ex5', text: '3 x 30s' }
+                ],
+                hard: [
+                    { id: 'beg-ex1', text: '4 x 12-15' },
+                    { id: 'beg-ex2', text: '4 x 15-20' },
+                    { id: 'beg-ex3', text: '4 x 20-30' },
+                    { id: 'beg-ex4', text: '4 x 15-20' },
+                    { id: 'beg-ex5', text: '4 x 45s+' }
+                ]
+            },
+            intermediate: {
+                easy: [
+                    { id: 'int-ex1', text: '3 x 4-6' },
+                    { id: 'int-ex2', text: '3 x 5-8' },
+                    { id: 'int-ex3', text: '3 x 8-10' },
+                    { id: 'int-ex4', text: '2 x 8/leg' },
+                    { id: 'int-ex5', text: '2 x 15' },
+                    { id: 'int-ex6', text: '3 x 12' }
+                ],
+                normal: [
+                    { id: 'int-ex1', text: '3-4 x 6-10' },
+                    { id: 'int-ex2', text: '3-4 x 8-12' },
+                    { id: 'int-ex3', text: '3 x 10-15' },
+                    { id: 'int-ex4', text: '3 x 8-10/leg' },
+                    { id: 'int-ex5', text: '3 x 20' },
+                    { id: 'int-ex6', text: '4 x 15-20' }
+                ],
+                hard: [
+                    { id: 'int-ex1', text: '5 x 10-12' },
+                    { id: 'int-ex2', text: '5 x 15-20' },
+                    { id: 'int-ex3', text: '4 x 20+' },
+                    { id: 'int-ex4', text: '4 x 12-15/leg' },
+                    { id: 'int-ex5', text: '4 x 30+' },
+                    { id: 'int-ex6', text: '5 x 25+' }
+                ]
+            }
+        };
+
+        let currentTab = 'beginner'; // beginner or intermediate
+        let currentIntensity = {
+            beginner: 'normal',
+            intermediate: 'normal'
+        };
+
+        // Tab Functionality
+        function switchTab(tabName) {
+            currentTab = tabName;
+            
+            // Update Buttons
+            document.getElementById('tab-beginner').className = tabName === 'beginner' 
+                ? 'active-tab py-3 rounded-lg transition-all duration-300' 
+                : 'inactive-tab py-3 rounded-lg transition-all duration-300';
+            
+            document.getElementById('tab-intermediate').className = tabName === 'intermediate' 
+                ? 'active-tab py-3 rounded-lg transition-all duration-300' 
+                : 'inactive-tab py-3 rounded-lg transition-all duration-300';
+
+            // Update Content Visibility
+            document.getElementById('content-beginner').classList.toggle('hidden', tabName !== 'beginner');
+            document.getElementById('content-intermediate').classList.toggle('hidden', tabName !== 'intermediate');
+        }
+
+        // Intensity Functionality
+        function setIntensity(level) {
+            // Update state
+            currentIntensity[currentTab] = level;
+
+            // Update UI Buttons
+            const prefix = currentTab === 'beginner' ? 'beg' : 'int';
+            const colors = {
+                'easy': 'text-green-400 bg-green-900/20',
+                'normal': 'text-blue-400 bg-blue-900/20',
+                'hard': 'text-red-400 bg-red-900/20'
+            };
+
+            ['easy', 'normal', 'hard'].forEach(l => {
+                const btn = document.getElementById(`btn-${prefix}-${l}`);
+                if (l === level) {
+                    btn.classList.add('active');
+                    // btn.classList.add(...colors[l].split(' ')); // Keep base color
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+
+            // Update Data
+            const data = workoutData[currentTab][level];
+            data.forEach(item => {
+                const el = document.getElementById(item.id);
+                if (el) {
+                    // Animation effect
+                    el.style.opacity = '0';
+                    setTimeout(() => {
+                        el.innerText = item.text;
+                        
+                        // Change Badge Color based on level
+                        el.className = `font-bold px-3 py-1 rounded transition-all duration-300 ${
+                            level === 'easy' ? 'bg-green-500/20 text-green-400' :
+                            level === 'normal' ? 'bg-blue-500/20 text-blue-400' :
+                            'bg-red-500/20 text-red-400'
+                        }`;
+                        
+                        el.style.opacity = '1';
+                    }, 200);
+                }
+            });
+        }
+
+        // Initialize
+        setIntensity('normal'); // Set initial state styles
+
+
+        // Timer Functionality (Keep existing)
+        let timerInterval;
+        let timeLeft = 0;
+        let isRunning = false;
+
+        function toggleTimerModal() {
+            const modal = document.getElementById('timer-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        function updateDisplay() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            document.getElementById('timer-display').innerText = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function addTime(seconds) {
+            if (!isRunning) {
+                timeLeft += seconds;
+                updateDisplay();
+            }
+        }
+
+        function startTimer() {
+            if (timeLeft === 0) return;
+            
+            isRunning = true;
+            document.getElementById('btn-start').classList.add('hidden');
+            document.getElementById('btn-reset').classList.remove('hidden');
+
+            timerInterval = setInterval(() => {
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    updateDisplay();
+                } else {
+                    clearInterval(timerInterval);
+                    alert("⏰ หมดเวลาพักแล้ว! ลุยต่อเลย!");
+                    resetTimer();
+                }
+            }, 1000);
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            timeLeft = 0;
+            updateDisplay();
+            document.getElementById('btn-start').classList.remove('hidden');
+            document.getElementById('btn-reset').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
